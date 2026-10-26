@@ -39,7 +39,7 @@ Sous CLion, le panneau **Vcpkg** met la toolchain en place et la ligne
 ## Les formatives sont sur leur propre branche
 
 Les deux squelettes d'exercice — un casse-briques et un shoot'em up — ne sont pas sur
-`master` : ils vivent sur la branche **`formatives`**, pour que les étudiants ne tombent
+`main` : ils vivent sur la branche **`formatives`**, pour que les étudiants ne tombent
 pas dessus en lisant les exemples du cours.
 
 ```bash
