@@ -1,17 +1,16 @@
 #pragma once
-#include <SFML/Graphics/Color.hpp>
-#include <SFML/Graphics/Drawable.hpp>
-#include <SFML/Graphics/RectangleShape.hpp>
 
-class Brick : public sf::Drawable, sf::Transformable
+#include <SFML/Graphics.hpp>
+
+class Brick : public sf::Drawable
 {
 public:
-	Brick(sf::Vector2f position, sf::Vector2f size, sf::Color fillColor, sf::Color outlineColor);
+	Brick(sf::Vector2f position, sf::Vector2f size, sf::Color fill, sf::Color outline);
+
+	sf::FloatRect GetBounds() const { return shape_.getGlobalBounds(); }
 
 	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
-	sf::FloatRect GetBounds();
 
 private:
-	sf::RectangleShape _shape;
-
+	sf::RectangleShape shape_;
 };

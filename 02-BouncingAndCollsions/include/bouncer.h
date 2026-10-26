@@ -1,37 +1,23 @@
 #pragma once
 
-#include "ContactEvent.h"
-#include "SFML/Graphics.hpp"
-#include "box2d/box2d.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
-class Game;
+#include "objet.h"
 
-class Bouncer
+// Un mur. Statique, et il s'allume quand une balle le touche.
+class Bouncer : public Objet, public sf::Drawable
 {
-
 public:
-	explicit Bouncer(Game& game_, sf::RenderWindow& window_);
+	Bouncer(b2WorldId world, sf::Vector2f position, sf::Vector2f size);
 
-	void init(b2Vec2 size, b2Vec2 position);
-	void update();
-	void render();
-	void ContactReaction();
+	void Update(float dt);
+	void Touche(const Objet& autre) override;
 
-	std::string _name = "bouncer";
-
-	bool valid_ = false;
-
-	// The box 2D object
-	b2Body* body_ = nullptr;
-
+	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
 private:
-	// Root game
-	Game& game;
-	// Graphic object
-	sf::RectangleShape shape;
-	// The SFMl Window
-	sf::RenderWindow& window;
-
-
+	sf::RectangleShape shape_;
+	b2BodyId body_ = b2_nullBodyId;
+	float eclat_ = 0.0f;   // secondes restantes d'illumination
 };

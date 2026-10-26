@@ -1,32 +1,28 @@
 #pragma once
-#include <SFML/Graphics/CircleShape.hpp>
-#include <SFML/Graphics/Drawable.hpp>
-#include <SFML/Graphics/Transformable.hpp>
 
-class Ball : public sf::Drawable, public sf::Transformable
+#include <SFML/Graphics.hpp>
+
+class Ball : public sf::Drawable
 {
 public:
-	Ball() = default;
-	Ball(const sf::Vector2u& winSize);
+	explicit Ball(sf::Vector2u window_size);
 
-	void Update(float);
+	void Update(float time_elapsed);
 	void CollideBounds();
 	bool Collide(const sf::FloatRect& bounds);
-	bool IsOut();
-	void AddForce(sf::Vector2f);
+	bool IsOut() const;
+	void AddForce(sf::Vector2f force);
 
 protected:
 	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
 private:
-	sf::Vector2f _winSize;
+	void Bounce(sf::Vector2f direction);
+	static sf::Vector2f ContactNormal(const sf::FloatRect& bounds, sf::Vector2f direction);
 
-	sf::Vector2f _direction;
-	sf::Vector2f _velocity;
+	sf::Vector2f window_size_;
+	sf::Vector2f direction_;
+	sf::Vector2f velocity_;
 
-	sf::CircleShape _shape;
-
-	void _bounce(sf::Vector2f);
-	sf::Vector2f _getContactNormal(sf::FloatRect bounds, sf::Vector2f origin, sf::Vector2f direction);
-
+	sf::CircleShape shape_;
 };

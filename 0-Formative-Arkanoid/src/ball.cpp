@@ -1,143 +1,115 @@
 #include "ball.h"
 
-#include <iostream>
-#include <SFML/Graphics/RenderTarget.hpp>
-#include <SFML/System/Time.hpp>
+#include <limits>
+#include <vector>
 
 #include "RNG.h"
 #include "SFML_Vectors.h"
 
-constexpr float RADIUS = 5;
-constexpr float SPEED = 300;
-
-Ball::Ball(const sf::Vector2u& winSize)
+namespace
 {
+constexpr float kRayon = 5.0f;
+constexpr float kVitesse = 300.0f;   // px/s
+}  // namespace
 
-	_winSize = sf::Vector2f(winSize.x, winSize.y);
+Ball::Ball(const sf::Vector2u window_size) : shape_(kRayon)
+{
+	window_size_ = sf::Vector2f(window_size);
 
-	_shape = sf::CircleShape(RADIUS);
-	_shape.setOrigin(RADIUS, RADIUS);
+	shape_.setOrigin({kRayon, kRayon});
 
-	_direction.x = Utilities::RNG::Range(-1.0f, 1.0f);
-	_direction.y = Utilities::RNG::Range(-1.0f, 1.0f);
-	_direction = Utilities::SFML_Vectors::Normalize(_direction);
+	direction_ = Utilities::SFML_Vectors::Normalize(
+	    {Utilities::RNG::Range(-1.0f, 1.0f), Utilities::RNG::Range(-1.0f, 1.0f)});
 
-	setPosition(sf::Vector2f(_winSize.x * 0.5f, _winSize.y * 0.5f));
-	
+	shape_.setPosition(window_size_ * 0.5f);
 }
 
-
-void Ball::Update(float timeElapsed)
+void Ball::Update(const float time_elapsed)
 {
-	_velocity = _direction * SPEED;
-	setPosition(getPosition() + _velocity * timeElapsed);
+	velocity_ = direction_ * kVitesse;
+	shape_.setPosition(shape_.getPosition() + velocity_ * time_elapsed);
 }
 
 void Ball::CollideBounds()
 {
-	if (getPosition().x <= 0) 
-	{
-		_bounce(Utilities::SFML_Vectors::RIGHT);
-	}
-	if(getPosition().x >= _winSize.x)
-	{
-		_bounce(Utilities::SFML_Vectors::LEFT);
-	}
-	if (getPosition().y <= 0)
-	{
-		_bounce(Utilities::SFML_Vectors::DOWN);
-	}
+	const sf::Vector2f p = shape_.getPosition();
+
+	if (p.x <= 0.0f) Bounce(Utilities::SFML_Vectors::RIGHT);
+	if (p.x >= window_size_.x) Bounce(Utilities::SFML_Vectors::LEFT);
+	if (p.y <= 0.0f) Bounce(Utilities::SFML_Vectors::DOWN);
 }
 
 bool Ball::Collide(const sf::FloatRect& bounds)
 {
+	const sf::Vector2f avance =
+	    Utilities::SFML_Vectors::Normalize(velocity_) * shape_.getRadius();
 
-	sf::Vector2f velocity = Utilities::SFML_Vectors::Normalize(_velocity) * _shape.getRadius();
-
-	// TO DO : ????
-	if (bounds.contains(getPosition() + velocity))
+	// TO DO : un seul point teste devant la balle. A grande vitesse elle peut
+	// traverser une brique entre deux images — comment l'eviter ?
+	if (bounds.contains(shape_.getPosition() + avance))
 	{
-		sf::Vector2f bounceDir = _getContactNormal(bounds, getPosition(), velocity);
+		Bounce(ContactNormal(bounds, avance));
 
-		sf::Time time;
-		_bounce(bounceDir);
-
-		// Fake MTV -----------------------
-		setPosition(getPosition() + _direction * 3.0f * _shape.getRadius());
-
+		// Fausse separation : on pousse la balle hors de la brique pour ne pas
+		// rebondir deux fois de suite sur la meme.
+		shape_.setPosition(shape_.getPosition() + direction_ * 3.0f * shape_.getRadius());
 		return true;
-
 	}
 
 	return false;
-
 }
 
-sf::Vector2f Ball::_getContactNormal(sf::FloatRect bounds, sf::Vector2f origin, sf::Vector2f direction)
+sf::Vector2f Ball::ContactNormal(const sf::FloatRect& bounds, const sf::Vector2f direction)
 {
+	using namespace Utilities::SFML_Vectors;
 
-	using namespace  Utilities::SFML_Vectors;
+	// Les quatre cotes du rectangle, parcourus dans le sens horaire.
+	const std::vector<sf::Vector2f> cotes = {
+	    {bounds.size.x, 0.0f},
+	    {0.0f, bounds.size.y},
+	    {-bounds.size.x, 0.0f},
+	    {0.0f, -bounds.size.y},
+	};
 
-	// Get the edges of a float rect
-	std::vector<sf::Vector2f> edges;
-	edges.emplace_back(bounds.width, 0);
-	edges.emplace_back(0, bounds.height);
-	edges.emplace_back(bounds.width * -1, 0);
-	edges.emplace_back(0, bounds.height * -1);
+	// TO DO : trouver le bon cote. Le produit scalaire le plus petit designe le
+	// cote le plus oppose a la direction d'arrivee — est-ce toujours vrai ?
+	sf::Vector2f meilleur;
+	float meilleur_produit = std::numeric_limits<float>::max();
 
-	sf::Vector2f bestEdge;
-	double bestDot = std::numeric_limits<double>::max();
-
-	for (auto edge : edges)
+	for (const sf::Vector2f cote : cotes)
 	{
-		// TO DO : find the best edge !
-		double localDot = Dot(direction, edge);
-		std::cout << "dot/edge " << localDot << " : [" << edge.x << "," << edge.y << "]" << std::endl;
-
-		if (localDot < bestDot)
+		const float produit = Dot(direction, cote);
+		if (produit < meilleur_produit)
 		{
-			bestDot = localDot;
-			bestEdge = edge;
+			meilleur_produit = produit;
+			meilleur = cote;
 		}
-
 	}
 
-	std::cout << "Bests " << bestDot << " : [" << bestEdge.x << "," << bestEdge.y << "]" << std::endl;
-	std::cout << "Direction : [" << direction.x << "," << direction.y << "]" << std::endl;
-
-	sf::Vector2f normalizedNormalEdge = Normalize(LeftOrtho(bestEdge));
-
-	return normalizedNormalEdge;
+	return Normalize(LeftOrtho(meilleur));
 }
 
-void Ball::_bounce(sf::Vector2f dir)
+void Ball::Bounce(const sf::Vector2f direction)
 {
-	std::cout << " : Bouncing direction : " << dir.x << ":" << dir.y << std::endl;
+	constexpr float kEpsilon = std::numeric_limits<float>::epsilon();
 
-	float absX = std::abs(dir.x);
-	float absY = std::abs(dir.y);
+	if (std::abs(direction.x) > kEpsilon) direction_.x *= -1.0f;
+	if (std::abs(direction.y) > kEpsilon) direction_.y *= -1.0f;
 
-	if (absX > std::numeric_limits<float>::epsilon()) {
-		//_direction.x = dir.x * std::abs(_direction.x);
-		_direction.x *= -1;
-	}
-	if (absY > std::numeric_limits<float>::epsilon()) {
-		//_direction.y = dir.y * std::abs(_direction.y);
-		_direction.y *= -1;
-	}
-
-	_direction *= 1.025f; // 5% de plus � chaque rebond
-
+	direction_ *= 1.025f;   // 2,5 % plus vite a chaque rebond
 }
 
-bool Ball::IsOut()
+bool Ball::IsOut() const
 {
-	return getPosition().y >= _winSize.y;
+	return shape_.getPosition().y >= window_size_.y;
 }
 
-void Ball::AddForce(sf::Vector2f force)
+void Ball::AddForce(const sf::Vector2f force)
 {
-	_direction += force;
+	direction_ += force;
 }
 
-
+void Ball::draw(sf::RenderTarget& target, const sf::RenderStates states) const
+{
+	target.draw(shape_, states);
+}

@@ -1,37 +1,34 @@
 #pragma once
+
+#include <optional>
+
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
+
 #include "player.h"
 
-#include "SFML/Main.hpp"
-#include "SFML/Graphics.hpp"
-
+// Formative : le squelette d'un shoot'em up. Le vaisseau se deplace, le reste
+// est a vous — missiles, asteroides, score, fin de partie.
 class Game
 {
 public:
 	Game();
+	~Game();
 
-	void Draw();
-	void CheckEvents();
-
-	void Update();
 	int Loop();
 
 private:
-	sf::RenderWindow _window;
+	void CheckEvents();
+	void Update();
+	void Draw();
 
-	b2World _world;
+	sf::RenderWindow window_;
+	b2WorldId world_ = b2_nullWorldId;
 
-	Player _player;
+	Player player_;
 
-	sf::Font font;
-	sf::Text text;
+	sf::Font font_;
+	std::optional<sf::Text> text_;
 
-	//sf::Time _timeElapsed;
-	sf::Clock _clock;
-
-	bool _gameOver;
-
-	void _manageKeyPressed(const sf::Keyboard::Key& key);
-	void _manageKeyReleased(const sf::Keyboard::Key& key);
-
-
+	bool game_over_ = false;
 };

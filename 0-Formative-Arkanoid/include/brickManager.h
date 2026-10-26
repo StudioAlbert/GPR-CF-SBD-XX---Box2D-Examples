@@ -1,17 +1,20 @@
 #pragma once
 
 #include <vector>
-#include <SFML/Graphics/Drawable.hpp>
+
+#include <SFML/Graphics.hpp>
+
 #include "brick.h"
 
 class BrickManager : public sf::Drawable
 {
 public:
-	void InitiateBricks(const sf::Vector2u& winSize);
+	void InitiateBricks(sf::Vector2u window_size);
+
+	std::vector<Brick>& GetBricks() { return bricks_; }
 
 	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
-	std::vector<Brick>& GetBricks(){return _bricks;}
 
 private:
-	std::vector<Brick> _bricks;
+	std::vector<Brick> bricks_;
 };

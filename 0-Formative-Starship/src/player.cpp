@@ -1,122 +1,100 @@
 #include "player.h"
 
-#include <iostream>
-#include <ostream>
-#include <SFML/Graphics/Texture.hpp>
-
 #include "SfmlToBox2d.h"
-
-constexpr float ACC_VALUE = 15.0f;
-constexpr float MAX_SPEED = 100.0f;
 
 using namespace Utilities;
 
-
-Player::Player(const sf::Vector2u& winSize, b2World& world) : _winSize(winSize)
+namespace
 {
+constexpr float kVitesse = 4.0f;        // m/s
+constexpr float kFreinage = 0.9f;       // amortissement quand on lache la touche
+}  // namespace
 
-	sf::Texture texture;
-	texture.loadFromFile("./data/playerShip3_blue.png");
+void Player::Init(const sf::Vector2u window_size, const b2WorldId world)
+{
+	window_size_ = sf::Vector2f(window_size);
 
-	_shape.setTexture(texture);
-	_shape.setOrigin(_shape.getGlobalBounds().width * 0.5f, _shape.getGlobalBounds().height * 0.5f);
+	// --- le graphique ------------------------------------------------------
+	if (!texture_.loadFromFile("data/playerShip3_blue.png"))
+	{
+		// Pas d'image : on garde un sprite blanc plutot que de planter, mais on
+		// le dit. Un chemin relatif se lit depuis le repertoire de l'executable.
+		texture_ = sf::Texture(sf::Vector2u(48, 48));
+	}
+	shape_.emplace(texture_);
+	shape_->setOrigin(sf::Vector2f(texture_.getSize()) * 0.5f);
 
-	setPosition(_winSize.x * 0.5f, _winSize.y - 40);
+	const sf::Vector2f depart(window_size_.x * 0.5f, window_size_.y - 40.0f);
+	shape_->setPosition(depart);
 
-	// Defing the box 2D elements
-	b2BodyDef bodyDef;
-	bodyDef.fixedRotation = true;
-	bodyDef.type = b2_dynamicBody;
-	bodyDef.linearDamping = 0.5f;
+	// --- le corps ----------------------------------------------------------
+	b2BodyDef body_def = b2DefaultBodyDef();
+	body_def.type = b2_dynamicBody;
+	body_def.motionLocks.angularZ = true;
+	body_def.linearDamping = kFreinage;
+	body_def.position = SfmlToBox2d::PixelsToMeters(depart);
+	body_ = b2CreateBody(world, &body_def);
 
-	b2Vec2 windowSize = SfmlToBox2d::PixelsToMeters(_winSize);
+	// --- la forme ----------------------------------------------------------
+	// En METRES. Le squelette d'origine passait des pixels ici : le vaisseau
+	// faisait une centaine de metres de large, et plus rien ne se comportait
+	// normalement.
+	const sf::Vector2f demi = sf::Vector2f(texture_.getSize()) * 0.5f;
+	const b2Polygon box = b2MakeBox(SfmlToBox2d::PixelsToMeters(demi.x),
+	                                SfmlToBox2d::PixelsToMeters(demi.y));
 
-	bodyDef.position.Set(SfmlToBox2d::PixelsToMeters(getPosition().x), SfmlToBox2d::PixelsToMeters(getPosition().y));
-	_body = world.CreateBody(&bodyDef);
-
-	// Shape of the physical (A box)
-	b2PolygonShape box;
-	box.SetAsBox(_shape.getGlobalBounds().width * 0.5f, _shape.getGlobalBounds().height * 0.5f);
-
-	// The fixture is what it defines the physic react
-	b2FixtureDef ballFixtureDef;
-	ballFixtureDef.shape = &box;
-	ballFixtureDef.density = 1.0f;
-	ballFixtureDef.friction = 10.0f;
-	ballFixtureDef.restitution = 0.6f; // Make it bounce a little bit
-	//playerFixtureDef.userData.pointer = reinterpret_cast <std::uintptr_t>(&playerBoxData);
-	_body->CreateFixture(&ballFixtureDef);
-
-
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.material.friction = 0.3f;
+	b2CreatePolygonShape(body_, &shape_def, &box);
 }
 
-void Player::Update(float timeElapsed)
+void Player::Update()
 {
+	sf::Vector2f position = SfmlToBox2d::MetersToPixels(b2Body_GetPosition(body_));
 
-	//std::cout << "body position [" << body->GetPosition().x << ":" << body->GetPosition().y
-	//	<< "]|shape position [" << shape.getPosition().x << ":" << shape.getPosition().y << "]" << std::endl;
+	// On garde le vaisseau dans la fenetre.
+	const float demi_largeur = 0.5f * texture_.getSize().x;
+	const float gauche = demi_largeur;
+	const float droite = window_size_.x - demi_largeur;
 
-	// Get the position of the body
-	b2Vec2 bodyPos = _body->GetPosition();
-	// Translate meters to pixels
-	sf::Vector2f graphicPosition = SfmlToBox2d::MetersToPixels(bodyPos);
-
-	// Set the position of the Graphic object
-	setPosition(graphicPosition);
-
-	if (getPosition().x < _shape.getGlobalBounds().width * 0.5f)
+	if (position.x < gauche || position.x > droite)
 	{
-		std::cout << "out of bounds Left" << std::endl;
-		_body->SetTransform(b2Vec2(SfmlToBox2d::PixelsToMeters(getPosition().x - _shape.getGlobalBounds().width * 0.5f), _body->GetPosition().y), _body->GetAngle());
+		position.x = std::min(std::max(position.x, gauche), droite);
+		b2Body_SetTransform(body_, SfmlToBox2d::PixelsToMeters(position),
+		                    b2Body_GetRotation(body_));
+		b2Body_SetLinearVelocity(body_, {0.0f, 0.0f});
 	}
 
-	if (getPosition().x > _winSize.x - _shape.getGlobalBounds().width * 0.5f)
-	{
-		std::cout << "out of bounds Right" << std::endl;
-		_body->SetTransform(b2Vec2(SfmlToBox2d::PixelsToMeters(_winSize.x - _shape.getGlobalBounds().width * 0.5f), _body->GetPosition().y), _body->GetAngle());
-	}
-
-
+	shape_->setPosition(position);
 }
 
-sf::FloatRect Player::GetBounds() const
+sf::Vector2f Player::GetVelocity() const
 {
-
-	sf::FloatRect bounds = _shape.getGlobalBounds();
-
-	bounds.left += getPosition().x;
-	bounds.top += getPosition().y;
-
-	return bounds;
+	// Par valeur : l'original rendait une reference sur un temporaire.
+	return SfmlToBox2d::MetersToPixels(b2Body_GetLinearVelocity(body_));
 }
 
-const sf::Vector2f& Player::GetAcceleration()
+void Player::draw(sf::RenderTarget& target, const sf::RenderStates states) const
 {
-	return SfmlToBox2d::MetersToPixels(_body->GetLinearVelocity());
-}
-
-
-void Player::draw(sf::RenderTarget& target, sf::RenderStates states) const
-{
-	states.transform = getTransform();
-	target.draw(_shape, states);
+	if (shape_) target.draw(*shape_, states);
 }
 
 void Player::MoveLeft()
 {
-	_body->SetLinearVelocity(b2Vec2( - ACC_VALUE, 0));
-	_body->SetLinearDamping(0.0f);
+	b2Body_SetLinearVelocity(body_, {-kVitesse, 0.0f});
+	b2Body_SetLinearDamping(body_, 0.0f);
+	b2Body_SetAwake(body_, true);
 }
 
 void Player::MoveRight()
 {
-	_body->SetLinearVelocity(b2Vec2(ACC_VALUE, 0));
-	_body->SetLinearDamping(0.0f);
-
+	b2Body_SetLinearVelocity(body_, {kVitesse, 0.0f});
+	b2Body_SetLinearDamping(body_, 0.0f);
+	b2Body_SetAwake(body_, true);
 }
 
 void Player::Stop()
 {
-	_body->SetLinearVelocity(b2Vec2(0, 0));
-	_body->SetLinearDamping(0.9f);
+	b2Body_SetLinearDamping(body_, kFreinage);
 }

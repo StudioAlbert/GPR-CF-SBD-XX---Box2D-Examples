@@ -1,164 +1,76 @@
-#include "../include/game.h"
+#include "game.h"
 
-const float Game::pixelsMetersRatio = 100.0f;
+#include "contacts.h"
 
-Game::Game() :
-	_up(*this, this->window_),
-	_down(*this, this->window_),
-	_left(*this, this->window_),
-	_right(*this, this->window_),
-	world_(b2Vec2(0, 0))
+Game::~Game()
 {
-
+	if (b2World_IsValid(world_)) b2DestroyWorld(world_);
 }
 
-void Game::init() {
-
-	window_.create(sf::VideoMode(1280, 720), "SAE Platformer");
+void Game::Init()
+{
+	window_.create(sf::VideoMode({1280, 720}), "SAE Bouncing and Collisions");
 	window_.setVerticalSyncEnabled(true);
-	window_.setFramerateLimit(60.0f);
+	window_.setFramerateLimit(60);
 
-	// Init all elements
-	//theBall.init(window_);
-	b2Vec2 winSize(pixelsToMeters(window_.getSize().x), pixelsToMeters(window_.getSize().y));
+	b2WorldDef world_def = b2DefaultWorldDef();
+	world_def.gravity = {0.0f, 0.0f};
+	world_ = b2CreateWorld(&world_def);
 
-	_up.init(b2Vec2(winSize.x, 1.0F), b2Vec2(winSize.x / 2.0f, 0.0F));
-	_down.init(b2Vec2(winSize.x, 1.0F), b2Vec2(winSize.x / 2.0f, -1 * winSize.y));
-	_left.init(b2Vec2(1.0F, winSize.y), b2Vec2(0.0F, -1 * winSize.y / 2.0F));
-	_right.init(b2Vec2(1.0F, winSize.y), b2Vec2(winSize.x, -1 * winSize.y / 2.0F));
+	const sf::Vector2f taille(window_.getSize());
+	constexpr float kEpaisseur = 20.0f;
 
-	world_.SetContactListener(&_contactListener);
-
+	murs_.push_back(std::make_unique<Bouncer>(world_, sf::Vector2f(taille.x * 0.5f, 0.0f),
+	                                          sf::Vector2f(taille.x, kEpaisseur)));
+	murs_.push_back(std::make_unique<Bouncer>(world_, sf::Vector2f(taille.x * 0.5f, taille.y),
+	                                          sf::Vector2f(taille.x, kEpaisseur)));
+	murs_.push_back(std::make_unique<Bouncer>(world_, sf::Vector2f(0.0f, taille.y * 0.5f),
+	                                          sf::Vector2f(kEpaisseur, taille.y)));
+	murs_.push_back(std::make_unique<Bouncer>(world_, sf::Vector2f(taille.x, taille.y * 0.5f),
+	                                          sf::Vector2f(kEpaisseur, taille.y)));
 }
 
-void Game::loop()
+void Game::Loop()
 {
+	constexpr float kPas = 1.0f / 60.0f;
+	constexpr int kSousPas = 4;
 
 	while (window_.isOpen())
 	{
-#pragma region Event processes
-		sf::Event event;
-
-		while (window_.pollEvent(event))
+		// --- les evenements ------------------------------------------------
+		while (const std::optional event = window_.pollEvent())
 		{
-			// Windows events -------------------------------------------------------------------------------
-			if (event.type == sf::Event::Closed)
+			if (event->is<sf::Event::Closed>())
 			{
 				window_.close();
 				return;
 			}
-			if (event.type == sf::Event::Resized)
+			if (const auto* resized = event->getIf<sf::Event::Resized>())
 			{
-				auto view = window_.getView();
-				view.setSize(event.size.width, event.size.height);
+				sf::View view = window_.getView();
+				view.setSize(sf::Vector2f(resized->size));
 				window_.setView(view);
 			}
 		}
 
-
-		if (sf::Mouse::isButtonPressed(sf::Mouse::Left))
+		// Maintenir le clic lache des balles, une par image.
+		if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && balls_.size() < 300)
 		{
-			// Mouse events ---------------------------------------------------------------------------------
-			_greenBalls.emplace_back(sf::Vector2f(sf::Mouse::getPosition(window_).x, sf::Mouse::getPosition(window_).y), *this);
-			_greenBalls.back().SetDead(false);
-
-			//_redBalls.emplace_back(sf::Vector2f(sf::Mouse::getPosition(window_).x, sf::Mouse::getPosition(window_).y), *this);
-		}
-#pragma endregion
-
-
-#pragma region Physical process
-		// Updating the world with a delay
-		float timeStep = 1.0f / 60.0f;
-		int32 velocityIterations = 6;
-		int32 positionIterations = 2;
-		world_.Step(timeStep, velocityIterations, positionIterations);
-
-		// Update the elements
-
-		for (auto& ball : _greenBalls)
-		{
-			if(ball.IsDead() && ball.body_ != nullptr)
-			{
-				//world_.DestroyBody(ball.body_);
-			}else
-			{
-				ball.update();
-			}
+			const sf::Vector2f ou(sf::Mouse::getPosition(window_));
+			balls_.push_back(std::make_unique<Ball>(world_, ou));
 		}
 
-		_greenBalls.erase(std::remove_if(
-			_greenBalls.begin(),
-			_greenBalls.end(),
-			[](Ball& ball) { return ball.IsDead(); })
-			, _greenBalls.end()
-		);
+		// --- la physique ---------------------------------------------------
+		b2World_Step(world_, kPas, kSousPas);
+		TraiterLesContacts(world_);
 
+		for (const auto& b : balls_) b->Update();
+		for (const auto& m : murs_) m->Update(kPas);
 
-		//_redBalls.erase(std::remove_if(
-		//	_redBalls.begin(),
-		//	_redBalls.end(),
-		//	[](Ball& b) { return b.IsDead(); })
-		//	, _redBalls.end()
-		//);
-
-
-		//for (auto& ball : _redBalls)
-		//	ball.update();
-
-		_up.update();
-		_down.update();
-		_left.update();
-		_right.update();
-
-#pragma endregion
-
-
-#pragma region Graphics process
-		// Clear all backgroundb
+		// --- le graphique --------------------------------------------------
 		window_.clear();
-
-		// Render All elements
-		_up.render();
-		_down.render();
-		_left.render();
-		_right.render();
-
-		// Display all elements
-		for (auto& ball : _greenBalls)
-			window_.draw(ball);
-
-		for (auto& ball : _redBalls)
-			window_.draw(ball);
-
+		for (const auto& m : murs_) window_.draw(*m);
+		for (const auto& b : balls_) window_.draw(*b);
 		window_.display();
-#pragma endregion
-
 	}
 }
-
-b2Vec2 Game::pixelsToMeters(sf::Vector2f pixels)
-{
-	return b2Vec2(pixels.x / pixelsMetersRatio, -1.0f * pixels.y / pixelsMetersRatio);
-}
-
-b2Vec2 Game::pixelsToMeters(sf::Vector2u pixels)
-{
-	return b2Vec2(pixels.x / pixelsMetersRatio, -1.0f * pixels.y / pixelsMetersRatio);
-}
-
-float Game::pixelsToMeters(float pixels)
-{
-	return pixels / pixelsMetersRatio;
-}
-
-sf::Vector2f Game::metersToPixels(b2Vec2 meters)
-{
-	return sf::Vector2f(meters.x * pixelsMetersRatio, -1.0f * meters.y * pixelsMetersRatio);
-}
-
-sf::Vector2u Game::GetWinSize() const
-{
-	return window_.getSize();
-}
-

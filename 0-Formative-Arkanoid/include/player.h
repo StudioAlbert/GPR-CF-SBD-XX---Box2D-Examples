@@ -1,37 +1,29 @@
 #pragma once
 
-#include <SFML/Graphics/Drawable.hpp>
-#include <SFML/Graphics/RectangleShape.hpp>
-#include <SFML/Graphics/RenderTarget.hpp>
-#include <SFML/Graphics/Transformable.hpp>
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
-#include "box2d/box2d.h"
-
-class Player : public sf::Drawable, public sf::Transformable
+// La raquette. Elle est un corps Box2D dynamique : c'est le seul element du
+// squelette qui passe par le moteur physique, la balle fait ses collisions a la
+// main.
+class Player : public sf::Drawable
 {
 public:
-	Player() = default;
-	Player(const sf::Vector2u& winSize, b2World& world);
+	void Init(sf::Vector2u window_size, b2WorldId world);
 
 	void MoveLeft();
 	void MoveRight();
 	void Stop();
 
-	void Update(float);
-	sf::FloatRect GetBounds() const;
-
-	const sf::Vector2f& GetAcceleration();
+	void Update();
+	sf::FloatRect GetBounds() const { return shape_.getGlobalBounds(); }
+	sf::Vector2f GetVelocity() const;
 
 protected:
 	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
 private:
-	sf::Vector2f _winSize;
-
-	sf::RectangleShape _shape;
-
-	b2Body* _body;
-
-	bool _outOfBounds();
-
+	sf::Vector2f window_size_;
+	sf::RectangleShape shape_;
+	b2BodyId body_ = b2_nullBodyId;
 };

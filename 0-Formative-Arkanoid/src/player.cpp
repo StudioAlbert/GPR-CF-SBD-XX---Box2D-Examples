@@ -1,133 +1,93 @@
 #include "player.h"
 
-#include <iostream>
-#include <ostream>
+#include <algorithm>
 
 #include "SfmlToBox2d.h"
 
-constexpr float ACC_VALUE = 15.0f;
-constexpr float MAX_SPEED = 100.0f;
-
 using namespace Utilities;
 
-
-Player::Player(const sf::Vector2u& winSize, b2World& world) : _winSize(winSize)
+namespace
 {
+constexpr float kVitesse = 4.0f;    // m/s
+constexpr float kFreinage = 0.5f;
+}  // namespace
 
-	_shape = sf::RectangleShape(sf::Vector2f(60, 12));
-	_shape.setFillColor(sf::Color(75, 30, 37));
-	_shape.setOutlineColor(sf::Color(150, 60, 74));
-	_shape.setOutlineThickness(1);
-	_shape.setOrigin(_shape.getSize() * 0.5f);
+void Player::Init(const sf::Vector2u window_size, const b2WorldId world)
+{
+	window_size_ = sf::Vector2f(window_size);
 
-	setPosition(_winSize.x * 0.5f, _winSize.y - 40);
+	// --- le graphique ------------------------------------------------------
+	shape_.setSize({60.0f, 12.0f});
+	shape_.setOrigin(shape_.getSize() * 0.5f);
+	shape_.setFillColor(sf::Color(75, 30, 37));
+	shape_.setOutlineColor(sf::Color(150, 60, 74));
+	shape_.setOutlineThickness(1.0f);
 
-	// Defing the box 2D elements
-	b2BodyDef bodyDef;
-	bodyDef.fixedRotation = true;
-	bodyDef.type = b2_dynamicBody;
-	bodyDef.linearDamping = 0.5f;
+	const sf::Vector2f depart(window_size_.x * 0.5f, window_size_.y - 40.0f);
+	shape_.setPosition(depart);
 
-	b2Vec2 windowSize = SfmlToBox2d::PixelsToMeters(_winSize);
+	// --- le corps ----------------------------------------------------------
+	b2BodyDef body_def = b2DefaultBodyDef();
+	body_def.type = b2_dynamicBody;
+	body_def.motionLocks.angularZ = true;
+	body_def.linearDamping = kFreinage;
+	body_def.position = SfmlToBox2d::PixelsToMeters(depart);
+	body_ = b2CreateBody(world, &body_def);
 
-	bodyDef.position.Set(SfmlToBox2d::PixelsToMeters(getPosition().x), SfmlToBox2d::PixelsToMeters(getPosition().y));
-	_body = world.CreateBody(&bodyDef);
+	// --- la forme ----------------------------------------------------------
+	const sf::Vector2f demi = shape_.getSize() * 0.5f;
+	const b2Polygon box = b2MakeBox(SfmlToBox2d::PixelsToMeters(demi.x),
+	                                SfmlToBox2d::PixelsToMeters(demi.y));
 
-	// Shape of the physical (A box)
-	b2PolygonShape box;
-	box.SetAsBox(SfmlToBox2d::PixelsToMeters(_shape.getSize().x * 0.5f), SfmlToBox2d::PixelsToMeters(_shape.getSize().y * 0.5f));
-
-	// The fixture is what it defines the physic react
-	b2FixtureDef ballFixtureDef;
-	ballFixtureDef.shape = &box;
-	ballFixtureDef.density = 1.0f;
-	ballFixtureDef.friction = 10.0f;
-	ballFixtureDef.restitution = 0.6f; // Make it bounce a little bit
-	//playerFixtureDef.userData.pointer = reinterpret_cast <std::uintptr_t>(&playerBoxData);
-	_body->CreateFixture(&ballFixtureDef);
-
-
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.material.friction = 0.3f;
+	b2CreatePolygonShape(body_, &shape_def, &box);
 }
 
-void Player::Update(float timeElapsed)
+void Player::Update()
 {
+	sf::Vector2f position = SfmlToBox2d::MetersToPixels(b2Body_GetPosition(body_));
 
-	//std::cout << "body position [" << body->GetPosition().x << ":" << body->GetPosition().y
-	//	<< "]|shape position [" << shape.getPosition().x << ":" << shape.getPosition().y << "]" << std::endl;
+	const float demi_largeur = 0.5f * shape_.getSize().x;
+	const float serre = std::clamp(position.x, demi_largeur, window_size_.x - demi_largeur);
 
-	// Get the position of the body
-	b2Vec2 bodyPos = _body->GetPosition();
-	// Translate meters to pixels
-	sf::Vector2f graphicPosition = SfmlToBox2d::MetersToPixels(bodyPos);
-
-	// Set the position of the Graphic object
-	setPosition(graphicPosition);
-
-	if (getPosition().x < _shape.getSize().x * 0.5f)
+	if (serre != position.x)
 	{
-		std::cout << "out of bounds Left" << std::endl;
-		_body->SetTransform(b2Vec2(SfmlToBox2d::PixelsToMeters(getPosition().x - _shape.getSize().x * 0.5f), _body->GetPosition().y), _body->GetAngle());
+		position.x = serre;
+		b2Body_SetTransform(body_, SfmlToBox2d::PixelsToMeters(position),
+		                    b2Body_GetRotation(body_));
+		b2Body_SetLinearVelocity(body_, {0.0f, 0.0f});
 	}
 
-	if (getPosition().x > _winSize.x - _shape.getSize().x * 0.5f)
-	{
-		std::cout << "out of bounds Right" << std::endl;
-		_body->SetTransform(b2Vec2(SfmlToBox2d::PixelsToMeters(_winSize.x - _shape.getSize().x * 0.5f), _body->GetPosition().y), _body->GetAngle());
-	}
-
-
+	shape_.setPosition(position);
 }
 
-sf::FloatRect Player::GetBounds() const
+sf::Vector2f Player::GetVelocity() const
 {
-
-	sf::FloatRect bounds = _shape.getGlobalBounds();
-
-	bounds.left += getPosition().x;
-	bounds.top += getPosition().y;
-
-	return bounds;
+	return SfmlToBox2d::MetersToPixels(b2Body_GetLinearVelocity(body_));
 }
 
-const sf::Vector2f& Player::GetAcceleration()
+void Player::draw(sf::RenderTarget& target, const sf::RenderStates states) const
 {
-	return SfmlToBox2d::MetersToPixels(_body->GetLinearVelocity());
-}
-
-
-void Player::draw(sf::RenderTarget& target, sf::RenderStates states) const
-{
-	states.transform = getTransform();
-	target.draw(_shape, states);
+	target.draw(shape_, states);
 }
 
 void Player::MoveLeft()
 {
-
-	_body->SetLinearVelocity(b2Vec2( - ACC_VALUE, 0));
-	_body->SetLinearDamping(0.0f);
+	b2Body_SetLinearVelocity(body_, {-kVitesse, 0.0f});
+	b2Body_SetLinearDamping(body_, 0.0f);
+	b2Body_SetAwake(body_, true);
 }
 
 void Player::MoveRight()
 {
-	_body->SetLinearVelocity(b2Vec2(ACC_VALUE, 0));
-	_body->SetLinearDamping(0.0f);
-
+	b2Body_SetLinearVelocity(body_, {kVitesse, 0.0f});
+	b2Body_SetLinearDamping(body_, 0.0f);
+	b2Body_SetAwake(body_, true);
 }
 
 void Player::Stop()
 {
-	_body->SetLinearVelocity(b2Vec2(0, 0));
-	_body->SetLinearDamping(0.9f);
+	b2Body_SetLinearDamping(body_, kFreinage);
 }
-
-bool Player::_outOfBounds()
-{
-	return (
-		getPosition().x - _shape.getSize().x * 0.5f < 0 ||
-		getPosition().x + _shape.getSize().x * 0.5f > _winSize.x ||
-		getPosition().y - _shape.getSize().y * 0.5f < 0 ||
-		getPosition().y + _shape.getSize().y * 0.5f > _winSize.y);
-}
-
-

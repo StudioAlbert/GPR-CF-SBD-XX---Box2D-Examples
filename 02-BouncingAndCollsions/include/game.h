@@ -1,45 +1,34 @@
 #pragma once
 
-#include "SFML/Graphics/RenderWindow.hpp"
-#include "SFML/Graphics/Texture.hpp"
-#include "SFML/Window//Event.hpp"
-#include "box2d/b2_world.h"
-#include "box2d/b2_math.h"
+#include <memory>
+#include <vector>
+
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
 #include "ball.h"
 #include "bouncer.h"
-#include "contactListener.h"
 
-class Game{
+// Apesanteur, quatre murs. Maintenir le clic gauche lache des balles ; chacune
+// palit a mesure qu'elle tape les murs, et le mur touche s'allume.
+//
+// C'est la demonstration de « qui a touche qui » : chaque forme porte son objet
+// de jeu, et chaque objet porte son etiquette de type.
+class Game
+{
 public:
-	Game();
-	void init();
-	void loop();
+	Game() = default;
+	~Game();
 
-	b2World& getWorld() { return world_; };
-
-	static b2Vec2 pixelsToMeters(sf::Vector2f pixels);
-	static b2Vec2 pixelsToMeters(sf::Vector2u pixels);
-	static float pixelsToMeters(float pixels);
-	static sf::Vector2f metersToPixels(b2Vec2 meters);
-
-	static const float pixelsMetersRatio;
-
-	sf::Vector2u GetWinSize() const;
+	void Init();
+	void Loop();
 
 private:
-
-	// The window ---------------------------------------------
 	sf::RenderWindow window_;
+	b2WorldId world_ = b2_nullWorldId;
 
-	// The physical world -------------------------------------
-	b2World world_;
-
-	std::vector<Ball> _greenBalls;
-	std::vector<Ball> _redBalls;
-
-	Bouncer _up, _down, _left, _right;
-
-	ContactListener _contactListener;
-
+	// Des pointeurs : Box2D garde l'adresse de chaque balle dans `userData`, et
+	// un vector qui grandit deplace ses elements.
+	std::vector<std::unique_ptr<Ball>> balls_;
+	std::vector<std::unique_ptr<Bouncer>> murs_;
 };

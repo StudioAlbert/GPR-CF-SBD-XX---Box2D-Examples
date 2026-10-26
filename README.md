@@ -31,11 +31,12 @@ Sous CLion, le panneau **Vcpkg** met la toolchain en place et la ligne
 | SBD-04 | `00-Starter` | le « hello world » de Box2D, en console : une caisse tombe et s'arrête | **portée** |
 | SBD-04 | `01-Gravity` | le monde, le pas fixe, un corps dynamique qui tombe ; le clic le téléporte | **portée** |
 | SBD-05 | `02-Bouncing` | les contacts : la bille change de couleur à chaque choc | **portée** |
-| SBD-05 | `02-BouncingAndCollsions` | les contacts, avec les événements | à porter |
+| SBD-05 | `02-BouncingAndCollsions` | **qui a touché qui** : chaque forme porte son objet, chaque objet son étiquette | **portée** |
 | SBD-05 | `03-BouncingAdvanced` | des plateformes **inclinées**, tracées à la souris : le seul exemple avec une rotation | **portée** |
 | SBD-06 | `04-ZeroGravity` | un vrai capteur : la bille le traverse et il s'allume | **portée** |
 | SBD-05 | `05-SpriteMovement` | un petit jeu complet : vaisseau, missiles, astéroïdes | à porter |
-| — | `0-Formative-Arkanoid`, `0-Formative-Starship` | deux formatives | à porter |
+| — | `0-Formative-Arkanoid` | squelette de casse-briques — la balle fait ses collisions à la main | **portée** |
+| — | `0-Formative-Starship` | squelette de shoot'em up — le vaisseau se déplace | **portée** |
 
 ## L'état du portage
 

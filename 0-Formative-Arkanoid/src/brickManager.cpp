@@ -1,26 +1,20 @@
 #include "brickManager.h"
 
-#include <SFML/Graphics/RenderTarget.hpp>
-
-void BrickManager::InitiateBricks(const sf::Vector2u& winSize)
+void BrickManager::InitiateBricks(const sf::Vector2u window_size)
 {
+	constexpr sf::Vector2f taille{40.0f, 25.0f};
+	constexpr float kEcart = 1.1f;
 
-	sf::Vector2f size(40, 25);
-
-	for(int x = 30; x < winSize.x; x += size.x * 1.1f)
+	for (float x = 30.0f; x < static_cast<float>(window_size.x); x += taille.x * kEcart)
 	{
-		for (int y = 30; y < 200; y += size.y * 1.1f)
+		for (float y = 30.0f; y < 200.0f; y += taille.y * kEcart)
 		{
-			_bricks.emplace_back(sf::Vector2f(x, y), size, sf::Color::White, sf::Color::Blue);
+			bricks_.emplace_back(sf::Vector2f(x, y), taille, sf::Color::White, sf::Color::Blue);
 		}
 	}
-
 }
 
-void BrickManager::draw(sf::RenderTarget& target, sf::RenderStates states) const
+void BrickManager::draw(sf::RenderTarget& target, const sf::RenderStates states) const
 {
-	for (const Brick& brick : _bricks)
-	{
-		target.draw(brick);
-	}
+	for (const Brick& brick : bricks_) target.draw(brick, states);
 }

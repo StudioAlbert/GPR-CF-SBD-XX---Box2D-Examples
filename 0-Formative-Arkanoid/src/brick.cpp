@@ -1,32 +1,17 @@
 #include "brick.h"
 
-#include <SFML/Graphics/RenderTarget.hpp>
-
-Brick::Brick(sf::Vector2f position, sf::Vector2f size, sf::Color fillColor, sf::Color outlineColor)
+Brick::Brick(const sf::Vector2f position, const sf::Vector2f size, const sf::Color fill,
+             const sf::Color outline)
+    : shape_(size)
 {
-	setPosition(position);
-	_shape = sf::RectangleShape(size);
-	_shape.setOrigin(size * 0.5f);
-	_shape.setFillColor(fillColor);
-	_shape.setOutlineColor(outlineColor);
-	_shape.setOutlineThickness(1);
-
+	shape_.setOrigin(size * 0.5f);
+	shape_.setPosition(position);
+	shape_.setFillColor(fill);
+	shape_.setOutlineColor(outline);
+	shape_.setOutlineThickness(1.0f);
 }
 
-sf::FloatRect Brick::GetBounds()
+void Brick::draw(sf::RenderTarget& target, const sf::RenderStates states) const
 {
-	sf::FloatRect bounds = _shape.getGlobalBounds();
-
-	bounds.left += getPosition().x;
-	bounds.top += getPosition().y;
-
-	return bounds;
-
+	target.draw(shape_, states);
 }
-
-void Brick::draw(sf::RenderTarget& target, sf::RenderStates states) const
-{
-	states.transform = getTransform();
-	target.draw(_shape, states);
-}
-

@@ -1,100 +1,60 @@
+#include "ball.h"
 
-#include <iostream>
+#include "RNG.h"
+#include "SfmlToBox2d.h"
 
-#include "../include/ball.h"
-#include "../include/game.h"
-#include "../../_Utilities/include/RNG.h"
+using namespace Utilities;
 
-Ball::Ball(sf::Vector2f pixelPos, Game& game_) : _game(game_)
+Ball::Ball(const b2WorldId world, const sf::Vector2f pixel_position)
+    : Objet(TypeObjet::Balle), shape_(20.0f)
 {
+	// --- le graphique ------------------------------------------------------
+	shape_.setOrigin({shape_.getRadius(), shape_.getRadius()});
+	shape_.setFillColor(sf::Color::Green);
 
-    // Defining the shape
-    _shape.setRadius(20.0f);
-    _shape.setOrigin(_shape.getRadius(), _shape.getRadius());
-    _shape.setFillColor(sf::Color::Red);
+	// --- le corps ----------------------------------------------------------
+	b2BodyDef body_def = b2DefaultBodyDef();
+	body_def.type = b2_dynamicBody;
+	body_def.motionLocks.angularZ = true;
+	body_def.position = SfmlToBox2d::PixelsToMeters(pixel_position);
+	body_ = b2CreateBody(world, &body_def);
 
-    // Defing the box 2D elements
-    b2BodyDef bodyDef;
-    bodyDef.fixedRotation = true;
-    bodyDef.type = b2_dynamicBody;
-	bodyDef.position.Set(Game::pixelsToMeters(pixelPos).x, Game::pixelsToMeters(pixelPos).y);
-    //auto* m_userData = new ContactEvent(*this);
-    //bodyDef.userData.pointer = reinterpret_cast<uintptr_t>(m_userData);
+	b2Body_SetLinearVelocity(body_, {RNG::Range(-3.0f, 3.0f), RNG::Range(-3.0f, 3.0f)});
 
-    body_ = _game.getWorld().CreateBody(&bodyDef);
-    body_->SetLinearVelocity(b2Vec2(Utilities::RNG::Range(-1.0f, 1.0f), Utilities::RNG::Range(-1.0f, 1.0f)));
+	// --- la forme ----------------------------------------------------------
+	b2Circle circle{};
+	circle.center = {0.0f, 0.0f};
+	circle.radius = SfmlToBox2d::PixelsToMeters(shape_.getRadius());
 
-    // Shape of the physical (A box)
-    b2CircleShape ballBox;
-    ballBox.m_radius = Game::pixelsToMeters(_shape.getRadius());
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.material.friction = 0.0f;
+	shape_def.material.restitution = 1.0f;   // elle ne perd rien
+	shape_def.enableContactEvents = true;
 
-    // The fixture is what it defines the physic react
-    b2FixtureDef playerFixtureDef;
-    playerFixtureDef.shape = &ballBox;
-    playerFixtureDef.density = 1.0f;
-    playerFixtureDef.friction = 0.0f;
-    playerFixtureDef.restitution = 0.6f; // Make it bounce a little bit
+	// L'etiquette part par la base commune : c'est ce qui rend le cast du
+	// lecteur de contacts sur : tout ce qui sort de `userData` EST un `Objet`.
+	shape_def.userData = static_cast<Objet*>(this);
 
-	auto* m_userData = new ContactEvent<Ball, ContactType::Ball>(this);
-    playerFixtureDef.userData.pointer = reinterpret_cast<uintptr_t>(m_userData);
-
-    auto fixture = body_->CreateFixture(&playerFixtureDef);
-    //body_->SetUserData(static_cast<void*>(this));
-
-    valid_ = true;
-
+	b2CreateCircleShape(body_, &shape_def, &circle);
 }
 
-Ball::~Ball()
+void Ball::Update()
 {
-
+	shape_.setPosition(SfmlToBox2d::MetersToPixels(b2Body_GetPosition(body_)));
 }
 
-Ball& Ball::operator=(const Ball& other)
+void Ball::Touche(const Objet& autre)
 {
-	Ball ball(other);
-	return ball;
+	if (autre.Type() != TypeObjet::Mur) return;
+
+	// Elle palit a chaque mur touche : au bout de cinq, elle est blanche.
+	++touches_;
+	const auto reste = static_cast<std::uint8_t>(255 - std::min(touches_, 5) * 40);
+	shape_.setFillColor(sf::Color(255 - reste, 255, 255 - reste));
 }
 
-void Ball::update() {
-    
-    //std::cout << "Ball position [" << body->GetPosition().x << ":" << body->GetPosition().y 
-    //    << "]|shape position [" << shape.getPosition().x << ":" << shape.getPosition().y << "]" << std::endl;
-
-    // Get the position of the body
-    b2Vec2 bodyPos = body_->GetPosition();
-    // Translate meters to pixels
-    sf::Vector2f graphicPosition = Game::metersToPixels(bodyPos);
-    // Set the position of the Graphic object
-	_shape.setPosition(graphicPosition);
-
-}
-
-void Ball::setPixelsPosition(sf::Vector2f _pixelsPosition) {
-    // Put in mouse position
-    body_->SetTransform(Game::pixelsToMeters(_pixelsPosition), body_->GetAngle());
-    // Reset the velocity (Speed)
-    body_->SetLinearVelocity(b2Vec2(0.0f, -0.00001f));
-}
-
-void Ball::SetNewColor(sf::Color color)
+void Ball::draw(sf::RenderTarget& target, const sf::RenderStates states) const
 {
-	_shape.setFillColor(color);
-}
-
-void Ball::draw(sf::RenderTarget& target, sf::RenderStates states) const
-{
-    //states.transform = getTransform();
-    target.draw(_shape);
-}
-
-void Ball::ContactReaction()
-{
-	std::cout << "Ball::ContactReaction" << std::endl;
-}
-
-void Ball::SetDead(bool dead)
-{
-    _isDead = dead;
-    
+	target.draw(shape_, states);
 }
