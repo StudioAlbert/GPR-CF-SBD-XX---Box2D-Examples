@@ -1,0 +1,24 @@
+{
+  "name": "gpr-cf-sbd-xx-box2d-examples",
+  "version": "2.0.0",
+  "$comment": [
+    "Box2D 3.2.0 a change l'API sur deux points que les decks enseignent :",
+    "fixedRotation est devenu motionLocks, et le rappel pre-solve rend void.",
+    "Le baseline epingle la version : tout le monde compile la meme, quel que",
+    "soit l'age de son checkout vcpkg. 05f42531 est le commit qui monte box2d",
+    "a 3.2.0 (microsoft/vcpkg#54497, 22.10.2026)."
+  ],
+  "builtin-baseline": "05f42531caac26e1549dcd87cf83d3160f9e34a4",
+  "dependencies": [
+    {
+      "name": "sfml",
+      "default-features": false,
+      "features": [
+        "graphics",
+        "window",
+        "audio"
+      ]
+    },
+    "box2d"
+  ]
+}

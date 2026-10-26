@@ -1,19 +1,23 @@
 #pragma once
 
-#include "SFML/Graphics/RenderWindow.hpp"
-#include "SFML/Graphics/Texture.hpp"
-#include "SFML/Window//Event.hpp"
-#include "box2d/b2_world.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
 #include "ball.h"
 
-class Game{
+// Le monde physique et le monde graphique, cote a cote. Le facteur de conversion
+// vit ici et nulle part ailleurs : le jour ou il change, il ne change qu'une fois.
+class Game
+{
 public:
 	Game();
+	~Game();
+
 	void Init();
 	void Loop();
 
-	b2World& GetWorld() { return world_; }
+	// En Box2D 3 le monde est un identifiant, pas un objet : on le copie sans crainte.
+	b2WorldId GetWorld() const { return world_; }
 
 	static b2Vec2 PixelsToMeters(sf::Vector2f pixels);
 	static b2Vec2 PixelsToMeters(sf::Vector2u pixels);
@@ -22,16 +26,14 @@ public:
 	static sf::Vector2f MetersToPixels(b2Vec2 meters);
 	static float MetersToPixels(float meters);
 
-	static const float pixels_meters_ratio_;
+	static constexpr float pixels_meters_ratio_ = 100.0f;
 
 private:
-
-	// The window ---------------------------------------------
 	sf::RenderWindow window_;
 
-	// The physical world -------------------------------------
-	b2World world_{ b2Vec2(0.0f, -9.81f) };
+	// Cree dans Init(), detruit dans le destructeur. b2DestroyWorld emporte les
+	// corps et les formes avec lui : il n'y a rien d'autre a liberer.
+	b2WorldId world_ = b2_nullWorldId;
 
 	Ball the_ball_;
-
 };

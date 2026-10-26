@@ -1,87 +1,80 @@
-#include "../include/game.h"
-
-const float Game::pixels_meters_ratio_ = 100.0f;
+#include "game.h"
 
 Game::Game() : the_ball_(*this, this->window_)
 {
 }
 
-void Game::Init() {
+Game::~Game()
+{
+	// Emporte les corps et les formes. Rien d'autre a liberer.
+	if (b2World_IsValid(world_)) b2DestroyWorld(world_);
+}
 
-	window_.create(sf::VideoMode(1280, 720), "SAE Platformer");
+void Game::Init()
+{
+	// SFML 3 : la taille passe en un seul vecteur, plus en deux entiers.
+	window_.create(sf::VideoMode({1280, 720}), "SAE Platformer");
 	window_.setVerticalSyncEnabled(true);
-	window_.setFramerateLimit(60.0f);
+	window_.setFramerateLimit(60);
 
-	// Init all elements
+	// Box2D 3 : on decrit le monde, puis on le cree. Y monte, d'ou la gravite negative.
+	b2WorldDef world_def = b2DefaultWorldDef();
+	world_def.gravity = {0.0f, -9.81f};
+	world_ = b2CreateWorld(&world_def);
+
 	the_ball_.Init();
-
 }
 
 void Game::Loop()
 {
+	// Un pas fixe : la simulation ne depend pas du framerate.
+	constexpr float time_step = 1.0f / 60.0f;
+	constexpr int sub_step_count = 4;
 
 	while (window_.isOpen())
 	{
-#pragma region Event processes
-		sf::Event event;
-
-		while (window_.pollEvent(event))
+		// --- les evenements ------------------------------------------------
+		// SFML 3 : pollEvent rend un optionnel, et les evenements sont des types.
+		while (const std::optional event = window_.pollEvent())
 		{
-			// Windows events -------------------------------------------------------------------------------
-			if (event.type == sf::Event::Closed)
+			if (event->is<sf::Event::Closed>())
 			{
 				window_.close();
 				return;
 			}
-			if (event.type == sf::Event::Resized)
+			if (const auto* resized = event->getIf<sf::Event::Resized>())
 			{
-				auto view = window_.getView();
-				view.setSize(event.size.width, event.size.height);
+				sf::View view = window_.getView();
+				view.setSize(sf::Vector2f(resized->size));
 				window_.setView(view);
 			}
-
-			// Mouse events ---------------------------------------------------------------------------------
-			if (event.type == sf::Event::MouseButtonReleased)
+			if (const auto* clic = event->getIf<sf::Event::MouseButtonReleased>())
 			{
-				the_ball_.SetPixelsPosition(sf::Vector2f(event.mouseButton.x, event.mouseButton.y));
+				the_ball_.SetPixelsPosition(sf::Vector2f(clic->position));
 			}
 		}
-#pragma endregion
 
-
-#pragma region Physical process
-		// Updating the world with a delay
-		float timeStep = 1.0f / 60.0f;
-		int32 velocityIterations = 6;
-		int32 positionIterations = 2;
-		world_.Step(timeStep, velocityIterations, positionIterations);
-
-		// Update the elements
+		// --- la physique ---------------------------------------------------
+		// Box2D 3 : un seul compte de sous-pas, au lieu des deux de la version 2.
+		b2World_Step(world_, time_step, sub_step_count);
 		the_ball_.Update();
 
-#pragma endregion
-
-
-#pragma region Graphics process
-		// Clear all background
+		// --- le graphique --------------------------------------------------
 		window_.clear();
-		// Render All elements
 		the_ball_.Render();
-		// Display all elements
 		window_.display();
-#pragma endregion
-
 	}
 }
 
+// Les deux axes Y s'opposent : il monte chez Box2D, il descend chez SFML.
 b2Vec2 Game::PixelsToMeters(sf::Vector2f pixels)
 {
-	return b2Vec2(pixels.x / pixels_meters_ratio_, -1.0f * pixels.y / pixels_meters_ratio_);
+	return {pixels.x / pixels_meters_ratio_, -1.0f * pixels.y / pixels_meters_ratio_};
 }
 
 b2Vec2 Game::PixelsToMeters(sf::Vector2u pixels)
 {
-	return b2Vec2(pixels.x / pixels_meters_ratio_, -1.0f * pixels.y / pixels_meters_ratio_);
+	return PixelsToMeters(sf::Vector2f(pixels));
 }
 
 float Game::PixelsToMeters(float pixels)
@@ -96,5 +89,5 @@ float Game::MetersToPixels(float meters)
 
 sf::Vector2f Game::MetersToPixels(b2Vec2 meters)
 {
-	return sf::Vector2f(meters.x * pixels_meters_ratio_, -1.0f * meters.y * pixels_meters_ratio_);
+	return {meters.x * pixels_meters_ratio_, -1.0f * meters.y * pixels_meters_ratio_};
 }

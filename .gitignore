@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# vcpkg en mode manifeste installe ici
+vcpkg_installed/
+
+# Dossiers de build
+build/
+cmake-build-*/
+out/
