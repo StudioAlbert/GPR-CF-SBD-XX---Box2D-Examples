@@ -1,12 +1,12 @@
 #pragma once
 
-#include <limits>
-
-#include "SFML/Graphics.hpp"
-#include "box2d/box2d.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
 class Game;
 
+// La bille dynamique. Elle porte un `userData` : c'est par la qu'on la retrouve
+// depuis un evenement de contact.
 class Ball
 {
 public:
@@ -21,9 +21,8 @@ public:
 
 private:
 	Game& game_;
+	sf::RenderWindow& window_;
 
 	sf::CircleShape shape_;
-	sf::RenderWindow& window_;
-	b2Body* body_ = nullptr;
-
+	b2BodyId body_ = b2_nullBodyId;
 };

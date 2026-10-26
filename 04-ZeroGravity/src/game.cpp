@@ -1,196 +1,138 @@
-#include "../include/game.h"
+#include "game.h"
 
-Game::Game() : gravity_(0.0f, 0.0f), world_(gravity_), the_ball_(this->window_)
+#include <iostream>
+
+#include "SFML_Utilities.h"
+#include "contacts.h"
+
+Game::Game() : the_ball_(this->window_)
 {
-
 }
 
-void Game::Init() {
+Game::~Game()
+{
+	if (b2World_IsValid(world_)) b2DestroyWorld(world_);
+}
 
-	world_.SetContactListener(&contact_listener_);
-
-	window_.create(sf::VideoMode(1280, 720), "SAE Platformer");
+void Game::Init()
+{
+	window_.create(sf::VideoMode({1280, 720}), "SAE Zero Gravity");
 	window_.setVerticalSyncEnabled(true);
-	window_.setFramerateLimit(60.0f);
+	window_.setFramerateLimit(60);
 
-	// Init all elements
+	// Apesanteur : la balle garde sa vitesse jusqu'a ce qu'elle tape un bord.
+	b2WorldDef world_def = b2DefaultWorldDef();
+	world_def.gravity = {0.0f, 0.0f};
+	world_ = b2CreateWorld(&world_def);
+
 	the_ball_.Init(world_);
 
-	// Add a bouncer
-	// TOP LIMIT -------------------------------------------
-	window_limits_.emplace_back(
-		*this,
-		sf::Vector2f(0.5f * window_.getSize().x, 0.0f),
-		sf::Vector2f(window_.getSize().x, 10.0f)
-	);
-	// BOTTOM LIMIT -------------------------------------------
-	window_limits_.emplace_back(
-		*this,
-		sf::Vector2f(0.5f * window_.getSize().x, window_.getSize().y),
-		sf::Vector2f(window_.getSize().x, 10.0f)
+	const sf::Vector2f taille(window_.getSize());
 
-	);
-	// LEFT LIMIT -------------------------------------------
-	window_limits_.emplace_back(
-		*this,
-		sf::Vector2f(0.0f, 0.5f * window_.getSize().y),
-		sf::Vector2f(10.0F, window_.getSize().y)
-
-	);
-	// RIGHT LIMIT -------------------------------------------
-	window_limits_.emplace_back(
-		*this,
-		sf::Vector2f(window_.getSize().x, 0.5f * window_.getSize().y),
-		sf::Vector2f(10.0f, window_.getSize().y)
-
-	);
-
+	// Les quatre bords de la fenetre.
+	window_limits_.emplace_back(world_, sf::Vector2f(0.5f * taille.x, 0.0f),
+	                            sf::Vector2f(taille.x, 10.0f));
+	window_limits_.emplace_back(world_, sf::Vector2f(0.5f * taille.x, taille.y),
+	                            sf::Vector2f(taille.x, 10.0f));
+	window_limits_.emplace_back(world_, sf::Vector2f(0.0f, 0.5f * taille.y),
+	                            sf::Vector2f(10.0f, taille.y));
+	window_limits_.emplace_back(world_, sf::Vector2f(taille.x, 0.5f * taille.y),
+	                            sf::Vector2f(10.0f, taille.y));
 }
 
 void Game::Loop()
 {
+	// Un pas FIXE. Le pas variable de la version d'origine donnait des
+	// resultats differents a chaque execution, et des bugs injouables.
+	constexpr float kPas = 1.0f / 60.0f;
+	constexpr int kSousPas = 4;
 
 	while (window_.isOpen())
 	{
-#pragma region Event processes
-		sf::Event event;
-
-		while (window_.pollEvent(event))
+		// --- les evenements ------------------------------------------------
+		while (const std::optional event = window_.pollEvent())
 		{
-			// Windows events -------------------------------------------------------------------------------
-			if (event.type == sf::Event::Closed)
+			if (event->is<sf::Event::Closed>())
 			{
 				window_.close();
 				return;
 			}
-			if (event.type == sf::Event::Resized)
+			if (const auto* resized = event->getIf<sf::Event::Resized>())
 			{
-				auto view = window_.getView();
-				view.setSize(event.size.width, event.size.height);
+				sf::View view = window_.getView();
+				view.setSize(sf::Vector2f(resized->size));
 				window_.setView(view);
 			}
-
-			// Mouse events ---------------------------------------------------------------------------------
-			if (event.type == sf::Event::MouseButtonPressed)
+			if (const auto* presse = event->getIf<sf::Event::MouseButtonPressed>())
 			{
-				if (event.mouseButton.button == sf::Mouse::Right) {
-					//// mouse Released position detect
-					mouse_pressed_pos_sensor_ = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
-				}
-				if (event.mouseButton.button == sf::Mouse::Left) {
-					// mouse Released position detect
-					mouse_pressed_pos_ball_ = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
-				}
+				if (presse->button == sf::Mouse::Button::Right)
+					mouse_pressed_pos_sensor_ = sf::Vector2f(presse->position);
+				if (presse->button == sf::Mouse::Button::Left)
+					mouse_pressed_pos_ball_ = sf::Vector2f(presse->position);
 			}
-
-			if (event.type == sf::Event::MouseButtonReleased)
+			if (const auto* relache = event->getIf<sf::Event::MouseButtonReleased>())
 			{
-				if (event.mouseButton.button == sf::Mouse::Right) {
-					//// mouse Released position detect
-					mouse_released_pos_sensor_ = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
+				const sf::Vector2f fin(relache->position);
 
-					sensors_.emplace_back(
-						*this,
-						this->window_,
-						sf::Vector2f(
-							0.5f * mouse_released_pos_sensor_.x + 0.5f * mouse_pressed_pos_sensor_.x,
-							0.5f * mouse_released_pos_sensor_.y + 0.5f * mouse_pressed_pos_sensor_.y),
-						0.5f * VecDistance(mouse_pressed_pos_sensor_, mouse_released_pos_sensor_)
-					);
+				if (relache->button == sf::Mouse::Button::Right)
+				{
+					// Le glisser donne le centre et le rayon du capteur.
+					const sf::Vector2f centre = 0.5f * (fin + mouse_pressed_pos_sensor_);
+					const float rayon = 0.5f * VecDistance(mouse_pressed_pos_sensor_, fin);
+					if (rayon > 1.0f)
+						sensors_.push_back(std::make_unique<Sensor>(world_, centre, rayon));
 				}
-				if (event.mouseButton.button == sf::Mouse::Left) {
-					mouse_released_pos_ball_ = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
-					const sf::Vector2f velocity(mouse_released_pos_ball_.x - mouse_pressed_pos_ball_.x, mouse_released_pos_ball_.y - mouse_pressed_pos_ball_.y);
-
-					the_ball_.SetPixelsPosition(sf::Vector2f(event.mouseButton.x, event.mouseButton.y), velocity);
-
-					std::cout << "Ball velocity : " << the_ball_.GetLinearVelocity().x << " : " << the_ball_.GetLinearVelocity().y << " : " << the_ball_.GetLinearVelocity().Length() << std::endl;
-
+				if (relache->button == sf::Mouse::Button::Left)
+				{
+					// Le glisser donne la vitesse de depart.
+					the_ball_.SetPixelsPosition(fin, fin - mouse_pressed_pos_ball_);
+					const b2Vec2 v = the_ball_.GetLinearVelocity();
+					std::cout << "vitesse de la balle : " << v.x << " ; " << v.y << " m/s\n";
 				}
-
 			}
-			// Keyboard events
-			if (event.type == sf::Event::KeyReleased) {
-				if (event.key.code == sf::Keyboard::Space) {
-					ClearBouncers();
-				}
-				if (event.key.code == sf::Keyboard::Left || event.key.code == sf::Keyboard::Right || event.key.code == sf::Keyboard::Up || event.key.code == sf::Keyboard::Down) {
-					the_ball_.Move(0, 0);
-				}
-
+			if (const auto* touche = event->getIf<sf::Event::KeyReleased>())
+			{
+				if (touche->scancode == sf::Keyboard::Scancode::Space) ClearSensors();
 			}
-			if (event.type == sf::Event::KeyPressed) {
-
-				if (event.key.code == sf::Keyboard::Left) {
-					the_ball_.Move(-1, 0);
+			if (const auto* touche = event->getIf<sf::Event::KeyPressed>())
+			{
+				switch (touche->scancode)
+				{
+					case sf::Keyboard::Scancode::Left:  the_ball_.Move(-1.0f, 0.0f); break;
+					case sf::Keyboard::Scancode::Right: the_ball_.Move(1.0f, 0.0f);  break;
+					case sf::Keyboard::Scancode::Up:    the_ball_.Move(0.0f, 1.0f);  break;
+					case sf::Keyboard::Scancode::Down:  the_ball_.Move(0.0f, -1.0f); break;
+					default: break;
 				}
-				if (event.key.code == sf::Keyboard::Right) {
-					the_ball_.Move(1, 0);
-				}
-				if (event.key.code == sf::Keyboard::Up) {
-					the_ball_.Move(0, 1);
-				}
-				if (event.key.code == sf::Keyboard::Down) {
-					the_ball_.Move(0, -1);
-				}
-
 			}
 		}
-#pragma endregion
 
+		// --- la physique ---------------------------------------------------
+		accumulateur_ += clock_.restart().asSeconds();
+		while (accumulateur_ >= kPas)
+		{
+			b2World_Step(world_, kPas, kSousPas);
+			accumulateur_ -= kPas;
+		}
 
-#pragma region Physical process
-		// Updating the world with a delay
-		elapsed_ = clock_.restart();
-		world_.Step(elapsed_.asSeconds(), 6, 2);
+		// Les capteurs se lisent APRES le pas.
+		TraiterLesCapteurs(world_);
 
-		// Update the elements
 		the_ball_.Update();
-		for (auto& b : window_limits_) {
-			b.Update();
-		}
-		for (auto& s : sensors_) {
-			s.Update();
-		}
 
-
-#pragma endregion
-
-
-#pragma region Graphics process
-		// Clear all background
+		// --- le graphique --------------------------------------------------
 		window_.clear();
-
-		// Render All elements
+		for (const auto& b : window_limits_) window_.draw(b);
+		for (const auto& s : sensors_) window_.draw(*s);
 		window_.draw(the_ball_);
-		for (auto& b : window_limits_) {
-			window_.draw(b);
-		}
-		for (auto& s : sensors_) {
-			window_.draw(s);
-		}
-
-		// Display all elements
 		window_.display();
-#pragma endregion
-
 	}
 }
 
-
-void Game::ClearBouncers()
+void Game::ClearSensors()
 {
-
-	for (std::vector<MySensor>::iterator s = sensors_.begin(); s != sensors_.end(); ++s)
-	{
-		// First remove bodies from the physical world
-		world_.DestroyBody(s->GetBody());
-		// Notice that the iterator is decremented after it is passed
-		// to `erase()` but before `erase()` is executed
-		//s = sensors.erase(s);
-	}
-
+	// Detruire le corps emporte sa forme. On vide ensuite le vecteur, qui
+	// possede les objets.
+	for (const auto& s : sensors_) b2DestroyBody(s->GetBody());
 	sensors_.clear();
-
 }
-

@@ -1,27 +1,24 @@
 #pragma once
 
-#include "SFML/Graphics.hpp"
-#include "box2d/box2d.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
 class Game;
 
+// La plateforme. Statique : elle ne bouge pas quand on lui tombe dessus.
 class Bouncer
 {
 public:
-	explicit Bouncer(Game& game, sf::RenderWindow& window);
+	Bouncer(Game& game, sf::RenderWindow& window);
 
 	void Init();
 	void Update();
 	void Render() const;
 
 private:
-	// Root game
 	Game& game_;
-	// Graphic object
-	sf::RectangleShape shape_;
-	// The SFMl Window
 	sf::RenderWindow& window_;
-	// The box 2D object
-	b2Body* body_ = nullptr;
 
+	sf::RectangleShape shape_;
+	b2BodyId body_ = b2_nullBodyId;
 };

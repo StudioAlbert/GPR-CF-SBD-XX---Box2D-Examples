@@ -1,97 +1,84 @@
-#include "../include/game.h"
+#include "game.h"
 
-const float Game::pixels_meters_ratio_ = 100.0f;
+#include "contacts.h"
 
-Game::Game() :
-	gravity_(0, -9.81f),
-	world_(gravity_),
-	the_ball_(*this, this->window_),
-	bouncers_(*this, this->window_)
+Game::Game() : the_ball_(*this, this->window_), bouncer_(*this, this->window_)
 {
-
 }
 
-void Game::Init() {
+Game::~Game()
+{
+	if (b2World_IsValid(world_)) b2DestroyWorld(world_);
+}
 
-	window_.create(sf::VideoMode(1280, 720), "SAE Platformer");
+void Game::Init()
+{
+	window_.create(sf::VideoMode({1280, 720}), "SAE Bouncing");
 	window_.setVerticalSyncEnabled(true);
-	window_.setFramerateLimit(60.0f);
+	window_.setFramerateLimit(60);
 
-	// Init all elements
+	b2WorldDef world_def = b2DefaultWorldDef();
+	world_def.gravity = {0.0f, -9.81f};
+	world_ = b2CreateWorld(&world_def);
+
+	bouncer_.Init();
 	the_ball_.Init();
-	bouncers_.Init();
-
-	world_.SetContactListener(&contact_listener_);
-	
 }
 
 void Game::Loop()
 {
+	constexpr float time_step = 1.0f / 60.0f;
+	constexpr int sub_step_count = 4;
 
 	while (window_.isOpen())
 	{
-#pragma region Event processes
-		sf::Event event;
-
-		while (window_.pollEvent(event))
+		// --- les evenements ------------------------------------------------
+		while (const std::optional event = window_.pollEvent())
 		{
-			// Windows events -------------------------------------------------------------------------------
-			if (event.type == sf::Event::Closed)
+			if (event->is<sf::Event::Closed>())
 			{
 				window_.close();
 				return;
 			}
-			if (event.type == sf::Event::Resized)
+			if (const auto* resized = event->getIf<sf::Event::Resized>())
 			{
-				auto view = window_.getView();
-				view.setSize(event.size.width, event.size.height);
+				sf::View view = window_.getView();
+				view.setSize(sf::Vector2f(resized->size));
 				window_.setView(view);
 			}
-
-			// Mouse events ---------------------------------------------------------------------------------
-			if (event.type == sf::Event::MouseButtonReleased)
+			if (const auto* clic = event->getIf<sf::Event::MouseButtonReleased>())
 			{
-				the_ball_.SetPixelsPosition(sf::Vector2f(event.mouseButton.x, event.mouseButton.y));
+				the_ball_.SetPixelsPosition(sf::Vector2f(clic->position));
 			}
 		}
-#pragma endregion
 
+		// --- la physique ---------------------------------------------------
+		b2World_Step(world_, time_step, sub_step_count);
 
-#pragma region Physical process
-		// Updating the world with a delay
-		constexpr float time_step = 1.0f / 60.0f;
-		constexpr int32 velocity_iterations = 6;
-		constexpr int32 position_iterations = 2;
-		world_.Step(time_step, velocity_iterations, position_iterations);
+		// Les contacts se lisent APRES le pas : la simulation est finie, on peut
+		// creer, detruire et modifier sans risque.
+		TraiterLesContacts(world_);
 
-		// Update the elements
 		the_ball_.Update();
-		bouncers_.Update();
+		bouncer_.Update();
 
-#pragma endregion
-
-
-#pragma region Graphics process
-		// Clear all background
+		// --- le graphique --------------------------------------------------
 		window_.clear();
-		// Render All elements
+		bouncer_.Render();
 		the_ball_.Render();
-		bouncers_.Render();
-		// Display all elements
 		window_.display();
-#pragma endregion
-
 	}
 }
 
+// Les deux axes Y s'opposent : il monte chez Box2D, il descend chez SFML.
 b2Vec2 Game::PixelsToMeters(sf::Vector2f pixels)
 {
-	return { pixels.x / pixels_meters_ratio_, -1.0f * pixels.y / pixels_meters_ratio_ };
+	return {pixels.x / pixels_meters_ratio_, -1.0f * pixels.y / pixels_meters_ratio_};
 }
 
 b2Vec2 Game::PixelsToMeters(sf::Vector2u pixels)
 {
-	return {pixels.x / pixels_meters_ratio_, -1.0f * pixels.y / pixels_meters_ratio_};
+	return PixelsToMeters(sf::Vector2f(pixels));
 }
 
 float Game::PixelsToMeters(float pixels)
@@ -99,8 +86,12 @@ float Game::PixelsToMeters(float pixels)
 	return pixels / pixels_meters_ratio_;
 }
 
+float Game::MetersToPixels(float meters)
+{
+	return meters * pixels_meters_ratio_;
+}
+
 sf::Vector2f Game::MetersToPixels(b2Vec2 meters)
 {
 	return {meters.x * pixels_meters_ratio_, -1.0f * meters.y * pixels_meters_ratio_};
 }
-

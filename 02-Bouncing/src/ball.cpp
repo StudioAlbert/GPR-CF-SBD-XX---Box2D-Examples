@@ -1,60 +1,53 @@
+#include "ball.h"
 
-#include <iostream>
+#include <cstdlib>
 
-#include "../include/ball.h"
-#include "../include/game.h"
+#include "game.h"
 
 Ball::Ball(Game& game, sf::RenderWindow& window) : game_(game), window_(window)
 {
-
 }
 
-void Ball::Init() {
+void Ball::Init()
+{
+	// --- le graphique ------------------------------------------------------
+	shape_.setRadius(20.0f);
+	shape_.setOrigin({shape_.getRadius(), shape_.getRadius()});
+	shape_.setFillColor(sf::Color::Red);
 
-    // Defining the shape
-    shape_.setRadius(20.0f);
-    shape_.setOrigin(shape_.getRadius(), shape_.getRadius());
-    shape_.setFillColor(sf::Color::Red);
+	// --- le corps ----------------------------------------------------------
+	b2BodyDef body_def = b2DefaultBodyDef();
+	body_def.type = b2_dynamicBody;
+	body_def.motionLocks.angularZ = true;
 
-    // Defing the box 2D elements
-    b2BodyDef body_def;
-    body_def.fixedRotation = true;
-    body_def.type = b2_dynamicBody;
-    const b2Vec2 window_size = Game::PixelsToMeters(window_.getSize());
-    body_def.position.Set(window_size.x / 2.0f, window_size.y / 2.0f);
-    body_ = this->game_.GetWorld().CreateBody(&body_def);
+	const b2Vec2 window_size = Game::PixelsToMeters(window_.getSize());
+	body_def.position = {window_size.x / 2.0f, window_size.y / 2.0f};
+	body_ = b2CreateBody(game_.GetWorld(), &body_def);
 
-    // Shape of the physical (A box)
-    b2CircleShape ball_box;
-    ball_box.m_radius = Game::PixelsToMeters(shape_.getRadius());
+	// --- la forme, sa matiere, et son fil vers l'objet de jeu ---------------
+	b2Circle circle{};
+	circle.center = {0.0f, 0.0f};
+	circle.radius = Game::PixelsToMeters(shape_.getRadius());
 
-    // The fixture is what it defines the physic react
-    b2FixtureDef player_fixture_def;
-    player_fixture_def.shape = &ball_box;
-    player_fixture_def.density = 1.0f;
-    player_fixture_def.friction = 0.0f;
-    player_fixture_def.restitution = 0.6f; // Make it bounce a little bit
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.material.friction = 0.0f;
+	shape_def.material.restitution = 0.6f;   // elle rebondit un peu
 
-	player_fixture_def.userData.pointer = reinterpret_cast <std::uintptr_t>(this);
+	// Le piege de Box2D 3 : sans ca, la boucle d'evenements tourne a vide.
+	// Une seule des deux formes doit l'activer, et seulement sur un corps
+	// cinematique ou dynamique — la plateforme est statique, donc c'est ici.
+	shape_def.enableContactEvents = true;
 
-    //playerFixtureDef.userData.pointer = reinterpret_cast <std::uintptr_t>(&playerBoxData);
-    auto fixture = body_->CreateFixture(&player_fixture_def);
-    //body->SetUserData(this);
+	// Le fil qui ramene de la forme physique a cet objet.
+	shape_def.userData = this;
 
+	b2CreateCircleShape(body_, &shape_def, &circle);
 }
 
-void Ball::Update() {
-    
-    //std::cout << "Ball position [" << body->GetPosition().x << ":" << body->GetPosition().y 
-    //    << "]|shape position [" << shape.getPosition().x << ":" << shape.getPosition().y << "]" << std::endl;
-    
-    // Get the position of the body
-    const b2Vec2 body_pos = body_->GetPosition();
-    // Translate meters to pixels
-    const sf::Vector2f graphic_position = Game::MetersToPixels(body_pos);
-    // Set the position of the Graphic object
-	shape_.setPosition(graphic_position);
-
+void Ball::Update()
+{
+	shape_.setPosition(Game::MetersToPixels(b2Body_GetPosition(body_)));
 }
 
 void Ball::Render() const
@@ -64,13 +57,15 @@ void Ball::Render() const
 
 void Ball::SetPixelsPosition(const sf::Vector2f pixels_position) const
 {
-    // Put in mouse position
-    body_->SetTransform(Game::PixelsToMeters(pixels_position), body_->GetAngle());
-    // Reset the velocity (Speed)
-    body_->SetLinearVelocity(b2Vec2(0.0f, -0.00001f));
+	b2Body_SetTransform(body_, Game::PixelsToMeters(pixels_position), b2Body_GetRotation(body_));
+	b2Body_SetLinearVelocity(body_, {0.0f, 0.0f});
+	// Sans ca elle reste endormie en l'air : un corps au repos est mis en sommeil.
+	b2Body_SetAwake(body_, true);
 }
 
 void Ball::SetNewColor()
 {
-	shape_.setFillColor(sf::Color(rand() % 255, rand() % 255, rand() % 255));
+	shape_.setFillColor(sf::Color(static_cast<std::uint8_t>(std::rand() % 256),
+	                              static_cast<std::uint8_t>(std::rand() % 256),
+	                              static_cast<std::uint8_t>(std::rand() % 256)));
 }

@@ -1,42 +1,38 @@
 #pragma once
 
-#include "SFML/Graphics/RenderWindow.hpp"
-#include "SFML/Graphics/Texture.hpp"
-#include "SFML/Window//Event.hpp"
-#include "box2d/b2_world.h"
-#include "box2d/b2_math.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
-#include "../include/ball.h"
-#include "../include/bouncer.h"
-#include "../include/contactListener.h"
+#include "ball.h"
+#include "bouncer.h"
 
-class Game{
+// Une bille qui rebondit sur une plateforme statique, et qui change de couleur a
+// chaque contact. C'est la demonstration des contacts en Box2D 3.
+class Game
+{
 public:
 	Game();
+	~Game();
+
 	void Init();
 	void Loop();
 
-	b2World& GetWorld() { return world_; };
+	b2WorldId GetWorld() const { return world_; }
 
 	static b2Vec2 PixelsToMeters(sf::Vector2f pixels);
 	static b2Vec2 PixelsToMeters(sf::Vector2u pixels);
 	static float PixelsToMeters(float pixels);
-	static sf::Vector2f MetersToPixels(b2Vec2 meters);
 
-	static const float pixels_meters_ratio_;
+	static sf::Vector2f MetersToPixels(b2Vec2 meters);
+	static float MetersToPixels(float meters);
+
+	static constexpr float pixels_meters_ratio_ = 100.0f;
 
 private:
-
-	// The window ---------------------------------------------
 	sf::RenderWindow window_;
 
-	// The physical world -------------------------------------
-	b2Vec2 gravity_;
-	b2World world_;
+	b2WorldId world_ = b2_nullWorldId;
 
 	Ball the_ball_;
-	Bouncer bouncers_;
-
-	ContactListener contact_listener_;
-
+	Bouncer bouncer_;
 };

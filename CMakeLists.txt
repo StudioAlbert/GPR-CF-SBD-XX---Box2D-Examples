@@ -27,3 +27,5 @@ function(copy_data target)
 endfunction()
 
 add_subdirectory(01-Gravity)
+add_subdirectory(02-Bouncing)
+add_subdirectory(04-ZeroGravity)
