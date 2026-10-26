@@ -1,35 +1,32 @@
 #pragma once
 
-#include <box2d/b2_body.h>
-#include <box2d/b2_math.h>
-#include <box2d/b2_circle_shape.h>
-#include <box2d/b2_fixture.h>
-#include <box2d/b2_world.h>
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
-#include <SFML/Graphics/Drawable.hpp>
-#include <SFML/Graphics/Transformable.hpp>
-
-#include "core/SFML_Utilities.h"
-#include "managers/textureManager.h"
 #include "core/userData.h"
 
+// Tout ce qui existe a la fois dans le monde physique et a l'ecran.
+//
+// La classe tient le corps, son etiquette, et la recopie du physique vers le
+// graphique — dans ce sens-la seulement.
 class Box2DEntity : public sf::Drawable, public sf::Transformable
 {
-
 public:
-	Box2DEntity(b2World& world_);
-	~Box2DEntity();
+	explicit Box2DEntity(b2WorldId world);
+	~Box2DEntity() override;
 
-	void update();
+	Box2DEntity(const Box2DEntity&) = delete;
+	Box2DEntity& operator=(const Box2DEntity&) = delete;
+
+	void Update();
 
 protected:
-	b2Body* m_body = nullptr;
-	UserData* m_userData;
+	b2BodyId body_ = b2_nullBodyId;
 
-	b2World& m_world;
+	// Par valeur. Box2D garde son adresse, donc l'entite ne doit jamais etre
+	// copiee ni deplacee — d'ou les constructeurs supprimes ci-dessus, et les
+	// `unique_ptr` dans les gestionnaires.
+	UserData user_data_;
 
-	TextureManager* texManager = TextureManager::Instance();
-
-	virtual void createFixture(const float sizeX, const float sizeY) = 0;
-
+	b2WorldId world_ = b2_nullWorldId;
 };

@@ -1,257 +1,193 @@
-#include <random>
-
 #include "game.h"
 
-#include <iostream>
-
+#include "core/SFML_Utilities.h"
+#include "core/contacts.h"
+#include "managers/soundManager.h"
 #include "managers/textureManager.h"
 
-Game::Game() :
-	m_gravity(0.0f, 0.0f),
-	m_world(m_gravity),
-	m_ship(m_world),
-	m_contacts(*this),
-	m_missileManager(m_world),
-	m_asteroidManager(m_world)
+namespace
 {
+constexpr float kPas = 1.0f / 60.0f;
+constexpr int kSousPas = 4;
+constexpr float kDelaiAsteroide = 1.0f;   // s
+}  // namespace
+
+Game::Game() = default;
+
+Game::~Game()
+{
+	// Les entites tiennent des corps de ce monde : on les detruit d'abord.
+	window_limits_.clear();
+	missile_manager_.reset();
+	asteroid_manager_.reset();
+	ship_.reset();
+
+	if (b2World_IsValid(world_)) b2DestroyWorld(world_);
 }
 
-void Game::init() {
+void Game::Init()
+{
+	window_.create(sf::VideoMode({1280, 720}), "Asteroid Spaceship");
+	window_.setVerticalSyncEnabled(true);
+	window_.setFramerateLimit(60);
 
-	TextureManager* texture_manager = TextureManager::Instance();
+	// Apesanteur : vu de dessus.
+	b2WorldDef world_def = b2DefaultWorldDef();
+	world_def.gravity = {0.0f, 0.0f};
+	world_ = b2CreateWorld(&world_def);
 
-	m_window.create(sf::VideoMode(1280, 720), "Asteroid Spaceship");
-	m_window.setVerticalSyncEnabled(true);
-	m_window.setFramerateLimit(60.0f);
+	ship_.emplace(world_);
+	ship_->Init(window_.getSize());
 
-	m_ship.init(m_window.getSize());
-	m_ship.move(sf::Vector2f(0.5f * m_window.getSize().x, 0.5f * m_window.getSize().y), sf::Vector2f(0, 0));
+	asteroid_manager_.emplace(world_);
+	missile_manager_.emplace(world_);
 
-	m_gameOverTitle.setTexture(texture_manager->getGameOverTexture());
-	m_gameOverTitle.setOrigin(0.5f * texture_manager->getGameOverTexture().getSize().x, 0.5f * texture_manager->getGameOverTexture().getSize().y);
-	m_gameOverTitle.setPosition(0.5f * m_window.getSize().x, 0.5f * m_window.getSize().y);
+	const sf::Texture& fin = TextureManager::Instance().GameOver();
+	game_over_title_.emplace(fin);
+	game_over_title_->setOrigin(sf::Vector2f(fin.getSize()) * 0.5f);
+	game_over_title_->setPosition(sf::Vector2f(window_.getSize()) * 0.5f);
 
-	// Add a bouncer
-// TOP LIMIT -------------------------------------------
-	m_windowLimits.push_back(
-		std::make_unique<Bouncer>(
-			m_world,
-			sf::Vector2f(0.5f * m_window.getSize().x, 0.0f),
-			sf::Vector2f(m_window.getSize().x, 10.0f)
-			)
-	);
-	// BOTTOM LIMIT -------------------------------------------
-	m_windowLimits.push_back(
-		std::make_unique<Bouncer>(
-			m_world,
-			sf::Vector2f(0.5f * m_window.getSize().x, m_window.getSize().y),
-			sf::Vector2f(m_window.getSize().x, 10.0f)
-			)
-	);
-	// LEFT LIMIT -------------------------------------------
-	m_windowLimits.push_back(
-		std::make_unique<Bouncer>(
-			m_world,
-			sf::Vector2f(0.0f, 0.5f * m_window.getSize().y),
-			sf::Vector2f(10.0F, m_window.getSize().y)
-			)
-	);
-	// RIGHT LIMIT -------------------------------------------
-	m_windowLimits.push_back(
-		std::make_unique<Bouncer>(
-			m_world,
-			sf::Vector2f(m_window.getSize().x, 0.5f * m_window.getSize().y),
-			sf::Vector2f(10.0f, m_window.getSize().y)
-			)
-	);
+	// Les quatre bords.
+	const sf::Vector2f taille(window_.getSize());
+	constexpr float kEpaisseur = 10.0f;
 
-	m_debugMode = false;
-
-	// Register contacts
-	m_world.SetContactListener(&m_contacts);
-
+	window_limits_.push_back(std::make_unique<Bouncer>(
+	    world_, sf::Vector2f(taille.x * 0.5f, 0.0f), sf::Vector2f(taille.x, kEpaisseur)));
+	window_limits_.push_back(std::make_unique<Bouncer>(
+	    world_, sf::Vector2f(taille.x * 0.5f, taille.y), sf::Vector2f(taille.x, kEpaisseur)));
+	window_limits_.push_back(std::make_unique<Bouncer>(
+	    world_, sf::Vector2f(0.0f, taille.y * 0.5f), sf::Vector2f(kEpaisseur, taille.y)));
+	window_limits_.push_back(std::make_unique<Bouncer>(
+	    world_, sf::Vector2f(taille.x, taille.y * 0.5f), sf::Vector2f(kEpaisseur, taille.y)));
 }
 
-void Game::loop()
+void Game::Loop()
 {
-	while (m_window.isOpen())
+	while (window_.isOpen())
 	{
-#pragma region Event processes
-		sf::Event event;
-
-		while (m_window.pollEvent(event))
+		// --- les evenements ------------------------------------------------
+		while (const std::optional event = window_.pollEvent())
 		{
-			// Windows events -------------------------------------------------------------------------------
-			if (event.type == sf::Event::Closed)
+			if (event->is<sf::Event::Closed>())
 			{
-				m_window.close();
+				window_.close();
 				return;
 			}
-			if (event.type == sf::Event::Resized)
+			if (const auto* resized = event->getIf<sf::Event::Resized>())
 			{
-				auto view = m_window.getView();
-				view.setSize(event.size.width, event.size.height);
-				m_window.setView(view);
+				sf::View view = window_.getView();
+				view.setSize(sf::Vector2f(resized->size));
+				window_.setView(view);
 			}
-
-			// Mouse events ---------------------------------------------------------------------------------
-			if (event.type == sf::Event::MouseButtonReleased)
+			if (const auto* relache = event->getIf<sf::Event::KeyReleased>())
 			{
-			}
-
-			// Keyboard event
-			if (event.type == sf::Event::KeyReleased)
-			{
-				if (event.key.code == sf::Keyboard::Key::D)
+				if (relache->scancode == sf::Keyboard::Scancode::D)
 				{
-					m_debugMode = !m_debugMode;
+					debug_mode_ = !debug_mode_;
 				}
-				if (event.key.code == sf::Keyboard::Key::Space)
+				if (relache->scancode == sf::Keyboard::Scancode::Space && !game_over_)
 				{
-					m_missileManager.AddMissile(m_ship);
-					m_soundManager->playPiou();
-
+					missile_manager_->AddMissile(*ship_);
+					SoundManager::Instance().PlayPiou();
 				}
-				if (event.key.code == sf::Keyboard::Key::Left || event.key.code == sf::Keyboard::Key::Right) {
-					m_ship.setAngularDamping(10.0f);
+				if (relache->scancode == sf::Keyboard::Scancode::Left ||
+				    relache->scancode == sf::Keyboard::Scancode::Right)
+				{
+					ship_->SetAngularDamping(10.0f);
 				}
-
 			}
 		}
 
-
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up)) {
-			m_ship.speedUp(1.0f);
-		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down)) {
-			m_ship.speedDown(10.0f);
-		}
-
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left)) {
-			m_ship.rotateLeft(1.0f);
-		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right)) {
-			m_ship.rotateRight(1.0f);
+		// L'etat du clavier, lu hors de la file : une touche maintenue pousse
+		// a chaque image, elle ne produit pas un evenement par image.
+		if (!game_over_)
+		{
+			using sf::Keyboard::Scancode;
+			if (sf::Keyboard::isKeyPressed(Scancode::Up)) ship_->SpeedUp(1.0f);
+			if (sf::Keyboard::isKeyPressed(Scancode::Down)) ship_->SpeedDown(10.0f);
+			if (sf::Keyboard::isKeyPressed(Scancode::Left)) ship_->RotateLeft(1.0f);
+			if (sf::Keyboard::isKeyPressed(Scancode::Right)) ship_->RotateRight(1.0f);
 		}
 
+		if (!game_over_) Update();
+		Draw();
 
-#pragma endregion
-
-
-#pragma region Physical process
-		if (!m_gameOver)
-			update();
-
-#pragma endregion
-		draw();
-
-		m_soundManager->cleanSounds();
-
-#pragma region Graphics process
-
-#pragma endregion
-
+		SoundManager::Instance().CleanSounds();
 	}
 }
 
-void Game::update()
+void Game::Update()
 {
-	// Updating the world with a delay
-	float timeStep = 1.0f / 60.0f;
-	int32 velocityIterations = 6;
-	int32 positionIterations = 2;
-	m_world.Step(timeStep, velocityIterations, positionIterations);
+	const float ecoule = clock_.restart().asSeconds();
 
-	// Update the ship
-	m_ship.update();
-
-	// Update Life bars with the lif of the ship
-	m_lifeBar.setLife(m_ship.getLife());
-	m_lifeBar.update();
-	if (m_ship.getLife() <= 0)
+	// Un pas FIXE, rattrape par un accumulateur.
+	accumulateur_ += ecoule;
+	while (accumulateur_ >= kPas)
 	{
-		// LOOOOSSSEEEEERRRRRRRRRR !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		m_gameOver = true;
-		m_soundManager->playBoum();
+		b2World_Step(world_, kPas, kSousPas);
+		accumulateur_ -= kPas;
+	}
+
+	// Les evenements se lisent APRES le pas : la simulation est finie, on peut
+	// detruire des corps sans risque.
+	TraiterLesEvenements(world_, *this);
+
+	ship_->Update();
+	asteroid_manager_->Update();
+	missile_manager_->Update();
+
+	life_bar_.SetLife(ship_->Life());
+	life_bar_.Update();
+
+	if (ship_->Life() <= 0.0f)
+	{
+		game_over_ = true;
+		SoundManager::Instance().PlayBoum();
 		return;
 	}
 
-	// Udpate asteroids
-	m_asteroidManager.update();
-	m_missileManager.update();
-	// Update limits
-	for (auto& b : m_windowLimits) {
-		b->update();
-	}
-
-	// Tick every 1.0sec
-	sf::Time elapsed = clock.restart();
-	collectedElapsed += elapsed;
-
-	if (collectedElapsed.asSeconds() > 1.0f) {
-
-		std::random_device rd; // obtain a random number from hardware
-		std::mt19937 generator(rd()); // seed the generator
-		std::uniform_int_distribution<> rndAngle(0, 360); // define the range
-		std::uniform_int_distribution<> rndX(0, m_window.getSize().x); // define the range
-		std::uniform_int_distribution<> rndY(0, m_window.getSize().y); // define the range
-
-		sf::Vector2f rdnPos(rndX(generator), rndY(generator));
-
-		// Pop an asteroid
-		m_asteroidManager.AddAsteroid(sf::Vector2f(m_window.getSize()));
-
-		collectedElapsed = sf::Time::Zero;
-
-	}
-}
-
-void Game::draw()
-{
-	// Clear all background
-	m_window.clear();
-
-	// DRWA THINGS ----------------------------------------------------------
-	// Draw the ship
-	if (!m_gameOver)
-		m_window.draw(m_ship);
-
-	// Draw asteroids
-	m_window.draw(m_asteroidManager);
-	m_window.draw(m_missileManager);
-
-	// Draw limits
-	if (m_debugMode)
+	// Un asteroide par seconde.
+	depuis_asteroide_ += ecoule;
+	if (depuis_asteroide_ >= kDelaiAsteroide)
 	{
-		for (auto& b : m_windowLimits) {
-			m_window.draw(*b);
-		}
+		asteroid_manager_->AddAsteroid(sf::Vector2f(window_.getSize()));
+		depuis_asteroide_ = 0.0f;
 	}
-	// Draw Life bar
-	m_window.draw(m_lifeBar);
-
-	if (m_gameOver)
-		m_window.draw(m_gameOverTitle);
-
-	// Display all elements
-	m_window.display();
 }
 
-void Game::setDamagesToShip(float damages_)
+void Game::Draw()
 {
-	m_ship.setDamages(damages_);
-	m_soundManager->playBoum();
+	window_.clear();
 
+	if (!game_over_) window_.draw(*ship_);
+
+	window_.draw(*asteroid_manager_);
+	window_.draw(*missile_manager_);
+
+	if (debug_mode_)
+	{
+		for (const auto& b : window_limits_) window_.draw(*b);
+	}
+
+	window_.draw(life_bar_);
+
+	if (game_over_ && game_over_title_) window_.draw(*game_over_title_);
+
+	window_.display();
 }
 
-void Game::putAsteroidToDeath(int idAsteroid_)
+void Game::SetDamagesToShip(const float damages)
 {
-	m_asteroidManager.putAsteroidToDeath(idAsteroid_);
-	std::cout << "Asteroid " << idAsteroid_ << " sent to death." << std::endl;
-}
-void Game::putMissileToDeath(int idMissile_)
-{
-	m_missileManager.putMissileToDeath(idMissile_);
-	std::cout << "Missile " << idMissile_ << " sent to death." << std::endl;
+	ship_->SetDamages(damages);
+	SoundManager::Instance().PlayBoum();
 }
 
+void Game::PutAsteroidToDeath(const long id)
+{
+	asteroid_manager_->PutAsteroidToDeath(id);
+}
+
+void Game::PutMissileToDeath(const long id)
+{
+	missile_manager_->PutMissileToDeath(id);
+}

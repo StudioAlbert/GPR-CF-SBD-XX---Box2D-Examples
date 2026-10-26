@@ -1,102 +1,74 @@
 #include "asteroid.h"
 
-long Asteroid::m_localIdAsteroid = 0;
+#include <numbers>
+#include <random>
 
-Asteroid::Asteroid(b2World& world_, sf::Vector2f size_) : Box2DEntity(world_)
+#include "core/SFML_Utilities.h"
+#include "managers/textureManager.h"
+
+namespace
 {
 
-    createFixture(pixelsToMeters(size_.x), pixelsToMeters(size_.y));
-
-    //TextureManager* texManager = TextureManager::Instance();
-    m_sprite.setTexture(TextureManager::Instance()->getAsteroidTexture());
-
-    m_sprite.setOrigin(0.5f * texManager->getAsteroidTexture().getSize().x, 0.5f * texManager->getAsteroidTexture().getSize().y);
-
-    // Defing the box 2D elements
-    b2BodyDef bodyDef;
-    bodyDef.fixedRotation = false;
-    bodyDef.type = b2_dynamicBody;
-    bodyDef.angularDamping = 0.01f;
-    bodyDef.linearDamping = 0.01f;
-    // Set Datas
-    m_userData->setLocalId(getGlobalId());
-    m_userData->setType(UserDataType::ASTEROID);
-
-    std::random_device rd; // obtain a random number from hardware
-    std::mt19937 generator(rd()); // seed the generator
-
-    std::uniform_real_distribution<> rdnForceX(-0.1f, 0.1f); // define the range
-    std::uniform_real_distribution<> rndForceY(-0.1f, 0.1f); // define the range
-    std::uniform_int_distribution<> rndAngle(0, 360); // define the range
-    std::uniform_int_distribution<> rndPositionX(0, pixelsToMeters(size_.x)); // define the range
-    std::uniform_int_distribution<> rndPositionY(0, pixelsToMeters(size_.y)); // define the range
-
-    b2Vec2 rdnPos(rndPositionX(generator), -1.0f * rndPositionY(generator));
-    m_body->SetTransform(rdnPos, rndAngle(generator));
-
-    b2Vec2 initialForce = b2Vec2(rdnForceX(generator), rndForceY(generator));
-    m_body->ApplyLinearImpulseToCenter(initialForce, true);
-
-    m_body->SetLinearDamping(0.0f);
-    m_body->SetAngularDamping(0.0f);
-
+std::mt19937& Generateur()
+{
+	static std::random_device source;
+	static std::mt19937 generateur(source());
+	return generateur;
 }
 
-Asteroid Asteroid::operator=(const Asteroid& other)
+}  // namespace
+
+long Asteroid::NextId()
 {
-	Asteroid a(other.m_world, sf::Vector2f(0.0f, 0.0f));
-
-	a.m_body = other.m_body;
-
-	return a;
-
+	static long suivant = 0;
+	return suivant++;
 }
 
-
-//Asteroid::~Asteroid()
-//{
-//
-//}
-
-
-void Asteroid::createFixture(const float sizeX, const float sizeY)
+Asteroid::Asteroid(const b2WorldId world, const sf::Vector2f window_size) : Box2DEntity(world)
 {
-    
-    // Shape of the physical (A box)
-    b2CircleShape hitBox;
-    hitBox.m_radius = pixelsToMeters(sizeX * 0.5f);
+	const sf::Texture& texture = TextureManager::Instance().Asteroid();
 
-    // The fixture is what it defines the physic react
-    b2FixtureDef playerFixtureDef;
-    playerFixtureDef.shape = &hitBox;
-    playerFixtureDef.density = 1.0f;
-    playerFixtureDef.friction = 0.0f;
-    playerFixtureDef.restitution = 1.0f; // Make it bounce a little bit
-    m_body->CreateFixture(&playerFixtureDef);
+	sprite_.emplace(texture);
+	sprite_->setOrigin(sf::Vector2f(texture.getSize()) * 0.5f);
 
+	user_data_.SetType(UserDataType::Asteroid);
+	user_data_.SetLocalId(NextId());
+
+	// --- la forme ----------------------------------------------------------
+	b2Circle cercle{};
+	cercle.center = {0.0f, 0.0f};
+	cercle.radius = PixelsToMeters(0.5f * texture.getSize().x);
+
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.material.friction = 0.0f;
+	shape_def.material.restitution = 1.0f;
+	shape_def.enableContactEvents = true;   // pour le choc avec le vaisseau
+	shape_def.enableSensorEvents = true;    // pour etre vu par le missile
+
+	b2CreateCircleShape(body_, &shape_def, &cercle);
+
+	// --- ou, comment, et dans quel sens ------------------------------------
+	std::uniform_real_distribution<float> position_x(0.0f, window_size.x);
+	std::uniform_real_distribution<float> position_y(0.0f, window_size.y);
+	std::uniform_real_distribution<float> angle(0.0f, 2.0f * std::numbers::pi_v<float>);
+	std::uniform_real_distribution<float> poussee(-0.1f, 0.1f);
+
+	// L'angle en RADIANS. L'original tirait un entier entre 0 et 360 et le
+	// passait tel quel : cinquante-sept tours.
+	b2Body_SetTransform(body_,
+	                    PixelsToMeters(sf::Vector2f(position_x(Generateur()),
+	                                                position_y(Generateur()))),
+	                    b2MakeRot(angle(Generateur())));
+
+	b2Body_ApplyLinearImpulseToCenter(body_, {poussee(Generateur()), poussee(Generateur())}, true);
+
+	b2Body_SetLinearDamping(body_, 0.0f);
+	b2Body_SetAngularDamping(body_, 0.0f);
 }
 
 void Asteroid::draw(sf::RenderTarget& target, sf::RenderStates states) const
 {
-    states.transform *= getTransform();
-	target.draw(m_sprite, states);
-}
-
-void Asteroid::setIsDead()
-{
-    m_isDead = true;
-}
-bool Asteroid::getIsDead()
-{
-    return m_isDead;
-}
-
-long Asteroid::getLocalId()
-{
-    return m_userData->getLocalId();
-}
-
-long Asteroid::getGlobalId()
-{
-    return m_localIdAsteroid++;
+	states.transform *= getTransform();
+	if (sprite_) target.draw(*sprite_, states);
 }

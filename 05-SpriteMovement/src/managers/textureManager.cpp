@@ -1,42 +1,37 @@
 #include "managers/textureManager.h"
 
-TextureManager* TextureManager::textureManager_ = nullptr;
+#include <iostream>
+
+namespace
+{
+
+// Une texture de secours visible plutot qu'un plantage : si le fichier manque,
+// on voit un carre et on sait quoi chercher dans la console.
+void Charger(sf::Texture& texture, const std::string& chemin)
+{
+	if (!texture.loadFromFile(chemin))
+	{
+		std::cerr << "texture introuvable : " << chemin << '\n';
+		texture = sf::Texture(sf::Vector2u(32, 32));
+	}
+}
+
+}  // namespace
 
 TextureManager::TextureManager()
 {
-    m_asteroidTexture.loadFromFile("./data/Asteroid.png");
-    m_shipTexture.loadFromFile("./data/Ship.png");
-    m_gameOverTexture.loadFromFile("./data/GameOver.png");
-    m_missileTexture.loadFromFile("./data/missile.png");
+	// Attention a la casse : le fichier s'appelle `asteroid.png` en minuscules.
+	// Windows s'en moque, Linux non.
+	Charger(asteroid_, "data/asteroid.png");
+	Charger(ship_, "data/Ship.png");
+	Charger(game_over_, "data/GameOver.png");
+	Charger(missile_, "data/missile.png");
 }
 
-
-/**
- * Static methods should be defined outside the class.
- */
-TextureManager* TextureManager::Instance()
+TextureManager& TextureManager::Instance()
 {
-    /**
-     * This is a safer way to create an instance. instance = new Singleton is
-     * dangeruous in case two instance threads wants to access at the same time
-     */
-    if (textureManager_ == nullptr) {
-        textureManager_ = new TextureManager();
-    }
-    return textureManager_;
-}
-
-sf::Texture& TextureManager::getAsteroidTexture() {
-    return m_asteroidTexture;
-}
-sf::Texture& TextureManager::getShipTexture() {
-    return m_shipTexture;
-}
-sf::Texture& TextureManager::getGameOverTexture()
-{
-    return m_gameOverTexture;
-}
-sf::Texture& TextureManager::getMissileTexture()
-{
-    return m_missileTexture;
+	// Construite au premier appel, detruite a la fin du programme. Pas de `new`,
+	// donc rien a liberer.
+	static TextureManager instance;
+	return instance;
 }

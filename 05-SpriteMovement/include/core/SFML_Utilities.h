@@ -1,28 +1,41 @@
 #pragma once
-#include "SFML/Graphics.hpp"
-#include <box2d/b2_math.h>
 
-#define _USE_MATH_DEFINES // for C++
-#include <math.h>
+#include <cmath>
 
-//#define M_PI 3.14159265358979323846
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
-// Maths vector elements -----------------------------------------------------
-float dotProduct(sf::Vector2f vec1_, sf::Vector2f vec2_);
-float determinant(sf::Vector2f vec1_, sf::Vector2f vec2_);
-float vecLength(sf::Vector2f vec_);
-float vecDistance(sf::Vector2f p1, sf::Vector2f p2);
-float vecAngle(sf::Vector2f vec1_, sf::Vector2f vec2_);
-float degToRad(float degrees_);
-float radToDeg(float radians_);
+// Le seul endroit du programme qui connait le facteur.
+constexpr float kPixelsMetersRatio = 100.0f;
+constexpr float kEpsilon = 0.0001f;
 
-// Geometric transcriptions between physical and graphical worlds -----------------------------------------------------------
-b2Vec2 pixelsToMeters(sf::Vector2f pixels);
-b2Vec2 pixelsToMeters(sf::Vector2u pixels);
-float pixelsToMeters(float pixels);
-sf::Vector2f metersToPixels(b2Vec2 meters);
+// Y monte chez Box2D, il descend chez SFML.
+inline b2Vec2 PixelsToMeters(const sf::Vector2f pixels)
+{
+	return {pixels.x / kPixelsMetersRatio, -1.0f * pixels.y / kPixelsMetersRatio};
+}
 
-static constexpr float pixelsMetersRatio = 100.0f;
-constexpr float epsilon = 0.0001f;
+inline b2Vec2 PixelsToMeters(const sf::Vector2u pixels)
+{
+	return PixelsToMeters(sf::Vector2f(pixels));
+}
 
-sf::Vector2f getWorldMousePosition(sf::RenderWindow& window_);
+inline float PixelsToMeters(const float pixels)
+{
+	return pixels / kPixelsMetersRatio;
+}
+
+inline sf::Vector2f MetersToPixels(const b2Vec2 meters)
+{
+	return {meters.x * kPixelsMetersRatio, -1.0f * meters.y * kPixelsMetersRatio};
+}
+
+inline float MetersToPixels(const float meters)
+{
+	return meters * kPixelsMetersRatio;
+}
+
+inline float VecLength(const b2Vec2 v)
+{
+	return std::sqrt(v.x * v.x + v.y * v.y);
+}

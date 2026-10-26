@@ -1,101 +1,59 @@
 #include "missile.h"
 
-#include <box2d/b2_polygon_shape.h>
+#include "core/SFML_Utilities.h"
+#include "managers/textureManager.h"
 
-long Missile::m_localIdMissile = 0;
-
-Missile::Missile(b2World& world_, const sf::Vector2f startPos_, const float angle_) : Box2DEntity(world_)
+namespace
 {
-    createFixture(pixelsToMeters(texManager->getMissileTexture().getSize().x), pixelsToMeters(texManager->getMissileTexture().getSize().y));
+constexpr float kVitesse = 8.0f;   // m/s
+}  // namespace
 
-    TextureManager* texManager = TextureManager::Instance();
-    m_sprite.setTexture(texManager->getMissileTexture());
-
-    m_sprite.setOrigin(0.5f * texManager->getMissileTexture().getSize().x, 0.5f * texManager->getMissileTexture().getSize().y);
-
-    // Defing the box 2D elements
-    m_body->SetFixedRotation(true);
-    m_body->SetType(b2_kinematicBody);
-    m_body->SetAngularDamping(0.0f);
-    m_body->SetLinearDamping(0.0f);
-    
-    // Set Datas
-    m_userData->setLocalId(getGlobalId());
-    m_userData->setType(UserDataType::MISSILE);
-
-    // Set angle, velocity and position -----------------------------
-    b2Vec2 physicalStartPos = b2Vec2(pixelsToMeters(startPos_).x, pixelsToMeters(startPos_).y + 0.15f);
-    m_body->SetTransform(physicalStartPos, degToRad(angle_ - 90.0f));
-    //m_body->SetTransform(physicalStartPos, 0);
-
-    b2Vec2 initialVelocity = m_body->GetLocalVector(b2Vec2(5.0f , 0.0f));
-    m_body->SetLinearVelocity(initialVelocity);
-
-    update();
-
+long Missile::NextId()
+{
+	static long suivant = 0;
+	return suivant++;
 }
 
-//Missile::~Missile()
-//{
-//	
-//}
-
-void Missile::createFixture(const float sizeX, const float sizeY)
+Missile::Missile(const b2WorldId world, const sf::Vector2f start_pixels, const sf::Angle angle)
+    : Box2DEntity(world)
 {
-    // Shape of the physical (A box)
-    b2PolygonShape hitBox;
-    hitBox.SetAsBox(pixelsToMeters(texManager->getMissileTexture().getSize().x * 0.5f), pixelsToMeters(texManager->getMissileTexture().getSize().y * 0.5f));
+	const sf::Texture& texture = TextureManager::Instance().Missile();
 
-    // The fixture is what it defines the physic react
-    b2FixtureDef playerFixtureDef;
-    playerFixtureDef.shape = &hitBox;
-    playerFixtureDef.density = 1.0f;
-    playerFixtureDef.friction = 0.0f;
-    playerFixtureDef.restitution = 0.6f; // Make it bounce a little bit
-    playerFixtureDef.isSensor = true;
+	sprite_.emplace(texture);
+	sprite_->setOrigin(sf::Vector2f(texture.getSize()) * 0.5f);
 
-    m_body->CreateFixture(&playerFixtureDef);
+	user_data_.SetType(UserDataType::Missile);
+	user_data_.SetLocalId(NextId());
 
+	// --- le corps ----------------------------------------------------------
+	b2Body_SetType(body_, b2_kinematicBody);   // rien ne le devie
+	b2Body_SetAngularDamping(body_, 0.0f);
+	b2Body_SetLinearDamping(body_, 0.0f);
+
+	// L'angle du vaisseau est un angle d'ECRAN : il s'inverse pour le monde.
+	const float angle_monde = -angle.asRadians();
+	b2Body_SetTransform(body_, PixelsToMeters(start_pixels), b2MakeRot(angle_monde));
+
+	// Le vaisseau pointe vers le haut, donc le missile part vers son +Y local.
+	b2Body_SetLinearVelocity(body_, b2Body_GetWorldVector(body_, {0.0f, kVitesse}));
+
+	// --- la forme ----------------------------------------------------------
+	const sf::Vector2f demi = sf::Vector2f(texture.getSize()) * 0.5f;
+	const b2Polygon box = b2MakeBox(PixelsToMeters(demi.x), PixelsToMeters(demi.y));
+
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.isSensor = true;
+	// Les DEUX formes doivent l'activer : celle-ci et celle de l'asteroide.
+	shape_def.enableSensorEvents = true;
+
+	b2CreatePolygonShape(body_, &shape_def, &box);
+
+	Update();
 }
-
 
 void Missile::draw(sf::RenderTarget& target, sf::RenderStates states) const
 {
-    states.transform *= getTransform();
-    target.draw(m_sprite, states);
-}
-
-void Missile::update()
-{
-
-    // Get the position of the body
-    b2Vec2 bodyPos = m_body->GetPosition();
-
-    // Translate meters to pixels
-    sf::Vector2f graphicPosition = metersToPixels(bodyPos);
-
-    // Set the position of the Graphic object
-    setPosition(graphicPosition);
-
-    float angle = m_body->GetAngle();
-    setRotation(radToDeg(angle));
-
-}
-void Missile::setIsDead()
-{
-    m_isDead = true;
-}
-bool Missile::getIsDead()
-{
-    return m_isDead;
-}
-
-long Missile::getLocalId()
-{
-    return m_userData->getLocalId();
-}
-
-long Missile::getGlobalId()
-{
-    return m_localIdMissile++;
+	states.transform *= getTransform();
+	if (sprite_) target.draw(*sprite_, states);
 }

@@ -1,12 +1,11 @@
+#include <cstdlib>
+
 #include "game.h"
 
 int main()
 {
-
 	Game game;
-
-	game.init();
-
-	game.loop();
-
+	game.Init();
+	game.Loop();
+	return EXIT_SUCCESS;
 }

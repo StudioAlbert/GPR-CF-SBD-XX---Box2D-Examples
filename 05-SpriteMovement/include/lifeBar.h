@@ -1,23 +1,20 @@
 #pragma once
 
-#include "SFML/Graphics.hpp"
+#include <SFML/Graphics.hpp>
 
 class LifeBar : public sf::Drawable
 {
 public:
-	LifeBar(float lifeMax);
+	explicit LifeBar(float life_max);
 
-	void update();
+	void SetLife(float life);
+	void Update();
 
-	// DRAWABLE OVERRIDES
 	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
-	// Setters
-	void setLife(float life_);
-
 private:
-	sf::RectangleShape m_lifeBarFill;
-	sf::RectangleShape m_lifeBarContour;
-	float m_lifeMax;
-	float m_life;
+	sf::RectangleShape fill_;
+	sf::RectangleShape contour_;
+	float life_max_;
+	float life_;
 };

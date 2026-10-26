@@ -1,142 +1,97 @@
-
-#include <iostream>
-
-#include "core/SFML_Utilities.h"
-#include "core/userData.h"
-#include "managers/textureManager.h"
-
-#include "game.h"
 #include "ship.h"
 
-Ship::Ship(b2World& world_) : Box2DEntity(world_)
+#include "core/SFML_Utilities.h"
+#include "managers/textureManager.h"
+
+Ship::Ship(const b2WorldId world) : Box2DEntity(world)
 {
-    createFixture(pixelsToMeters(texManager->getShipTexture().getSize().x), pixelsToMeters(texManager->getShipTexture().getSize().y));
+	const sf::Texture& texture = TextureManager::Instance().Ship();
+
+	sprite_.emplace(texture);
+	sprite_->setOrigin(sf::Vector2f(texture.getSize()) * 0.5f);
+
+	user_data_.SetType(UserDataType::Ship);
+
+	// --- la forme ----------------------------------------------------------
+	// En METRES, une seule fois. L'original convertissait deja en appelant
+	// createFixture, puis reconvertissait dedans.
+	const sf::Vector2f demi = sf::Vector2f(texture.getSize()) * 0.5f;
+	const b2Polygon box = b2MakeBox(PixelsToMeters(demi.x), PixelsToMeters(demi.y));
+
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.material.friction = 0.0f;
+	shape_def.material.restitution = 0.6f;
+	shape_def.enableContactEvents = true;   // sinon : aucun choc detecte
+
+	b2CreatePolygonShape(body_, &shape_def, &box);
 }
 
-void Ship::init(sf::Vector2u winsize) {
-
-    // Defining the shape
-    TextureManager* texManager = TextureManager::Instance();
-    m_sprite.setTexture(texManager->getShipTexture());
-    m_sprite.setOrigin(texManager->getShipTexture().getSize().x * 0.5f, texManager->getShipTexture().getSize().y * 0.5f);
-    
-    // Set Datas
-    //m_userData->setLocalId(-1);
-    m_userData->setType(UserDataType::SHIP);
-    
-    m_body->SetLinearDamping(0.5f);
-    m_body->SetAngularDamping(0.25f);
-
-}
-
-void Ship::createFixture(const float sizeX, const float sizeY) {
-
-    // Shape of the physical (A box)
-    b2PolygonShape hitBox;
-    hitBox.SetAsBox(0.5f * sizeX, 0.5f * sizeY);
-
-    // The fixture is what it defines the physic react
-    b2FixtureDef playerFixtureDef;
-    playerFixtureDef.shape = &hitBox;
-    playerFixtureDef.density = 1.0f;
-    playerFixtureDef.friction = 0.0f;
-    playerFixtureDef.restitution = 0.6f; // Make it bounce a little bit
-    //playerFixtureDef.userData.pointer = reinterpret_cast<uintptr_t>(&m_userData);
-	m_body->CreateFixture(&playerFixtureDef);
-
-}
-
-float Ship::getLife()
+void Ship::Init(const sf::Vector2u window_size)
 {
-    return m_life;
+	const sf::Vector2f centre(0.5f * window_size.x, 0.5f * window_size.y);
+	b2Body_SetTransform(body_, PixelsToMeters(centre), b2Rot_identity);
+
+	b2Body_SetLinearDamping(body_, 0.5f);
+	b2Body_SetAngularDamping(body_, 0.25f);
 }
 
-void Ship::setDamages(float damages_)
+void Ship::Update()
 {
-    m_life -= damages_;
+	Box2DEntity::Update();
+
+	// Sous le seuil, on arrete net : sinon le vaisseau derive indefiniment.
+	if (VecLength(b2Body_GetLinearVelocity(body_)) < kEpsilon)
+	{
+		b2Body_SetLinearVelocity(body_, {0.0f, 0.0f});
+	}
 }
 
 void Ship::draw(sf::RenderTarget& target, sf::RenderStates states) const
 {
-    states.transform *= getTransform();
-    target.draw(m_sprite, states);
+	states.transform *= getTransform();
+	if (sprite_) target.draw(*sprite_, states);
 }
 
-void Ship::update()
+void Ship::SpeedUp(const float force)
 {
-    Box2DEntity::update();
-
-    if (b2Abs(m_body->GetLinearVelocity().Length()) < epsilonLinearVelocity) {
-        m_body->SetLinearVelocity(b2Vec2_zero);
-    }
-
+	ApplyLocalForce(force);
 }
 
-void Ship::move(sf::Vector2f _pixelsPosition, sf::Vector2f _velocity) {
-
-    b2Vec2 pos = pixelsToMeters(_pixelsPosition);
-    b2Vec2 vel = pixelsToMeters(_velocity);
-
-    m_body->SetTransform(pos, 0.0f);
-
-}
-
-void Ship::speedUp(float forceValue) {
-    ApplyLocalForceWithCheck(1.0f * forceValue);
-}
-
-void Ship::ApplyLocalForceWithCheck(float forceValue) {
-
-    b2Vec2 force(0.0, forceValue);
-    b2Vec2 localForce = m_body->GetWorldVector(force);
-
-    m_body->SetLinearDamping(0.5f);
-
-    //ApplyLocalForceWithCheck(1.0f * forceValue);
-    if (m_body->GetLinearVelocity().Length() < maxLinearVelocity) {
-        m_body->ApplyForceToCenter(localForce, true);
-    }
-
-    if (b2Abs(m_body->GetLinearVelocity().Length()) < epsilon) {
-        m_body->SetLinearVelocity(b2Vec2_zero);
-    }
-
-}
-
-void Ship::speedDown(float forceValue)
+void Ship::SpeedDown(const float damping)
 {
-	m_body->SetLinearDamping(forceValue);
+	b2Body_SetLinearDamping(body_, damping);
 }
 
-void Ship::rotateLeft(float torque)
+void Ship::ApplyLocalForce(const float force)
 {
-    ApplyTorqueWithCheck(1.0f * torque);
+	b2Body_SetLinearDamping(body_, 0.5f);
+
+	// La poussee est dans le repere du vaisseau : il avance la ou il pointe.
+	const b2Vec2 poussee = b2Body_GetWorldVector(body_, {0.0f, force});
+
+	if (VecLength(b2Body_GetLinearVelocity(body_)) < kMaxLinearVelocity)
+	{
+		b2Body_ApplyForceToCenter(body_, poussee, true);
+	}
 }
 
-void Ship::rotateRight(float torque) {
-    ApplyTorqueWithCheck(-1.0f * torque);
-}
+void Ship::RotateLeft(const float torque) { ApplyTorque(torque); }
+void Ship::RotateRight(const float torque) { ApplyTorque(-torque); }
 
-void Ship::ApplyTorqueWithCheck(float torque) {
-
-    setAngularDamping(0.5f);
-
-
-
-    if ((torque > 0 && m_body->GetAngularVelocity() < maxAngularVelocity) || (torque < 0 && m_body->GetAngularVelocity() > -1.0 * maxAngularVelocity)) {
-
-        m_body->ApplyTorque(torque, true);
-
-        if (b2Abs(m_body->GetAngularVelocity()) < epsilonAngularVelocity) {
-            m_body->SetAngularVelocity(0.0f);
-        }
-
-    }
-
-}
-
-void Ship::setAngularDamping(float dampingValue)
+void Ship::ApplyTorque(const float torque)
 {
-    m_body->SetAngularDamping(dampingValue);
+	SetAngularDamping(0.5f);
+
+	const float vitesse = b2Body_GetAngularVelocity(body_);
+	if ((torque > 0.0f && vitesse < kMaxAngularVelocity) ||
+	    (torque < 0.0f && vitesse > -kMaxAngularVelocity))
+	{
+		b2Body_ApplyTorque(body_, torque, true);
+	}
 }
 
+void Ship::SetAngularDamping(const float damping)
+{
+	b2Body_SetAngularDamping(body_, damping);
+}

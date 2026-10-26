@@ -1,34 +1,36 @@
 #pragma once
 
 #include <string>
-#include <box2d/b2_settings.h>
 
-enum UserDataType : char
+// Ce que Box2D rend quand on lui demande « a qui est cette forme ».
+//
+// En Box2D 3, `userData` est un simple `void*` : il n'y a plus de
+// `b2BodyUserData` a deriver. On y range l'adresse de cette structure, que
+// chaque entite possede PAR VALEUR — donc rien a liberer.
+enum class UserDataType
 {
-    SHIP = 's',
-    LIMIT = 'l',
-    ASTEROID = 'a',
-    MISSILE = 'n',
-    NONE
-
+	Ship,
+	Limit,
+	Asteroid,
+	Missile,
+	None
 };
 
-class UserData : public b2BodyUserData
+class UserData
 {
 public:
-    UserData();
-    UserData(UserDataType type_);
+	UserData() = default;
+	explicit UserData(const UserDataType type) : type_(type) {}
 
-    static const std::string UserDataTypeToString(UserDataType type_);
+	UserDataType Type() const { return type_; }
+	long LocalId() const { return local_id_; }
 
-    UserDataType getUserDataType();
-    signed long getLocalId();
+	void SetType(const UserDataType type) { type_ = type; }
+	void SetLocalId(const long id) { local_id_ = id; }
 
-    void setLocalId(signed long id_);
-    void setType(UserDataType type_);
+	static std::string ToString(UserDataType type);
 
 private:
-    UserDataType m_type;
-    signed long m_localId;
-
+	UserDataType type_ = UserDataType::None;
+	long local_id_ = -1;
 };

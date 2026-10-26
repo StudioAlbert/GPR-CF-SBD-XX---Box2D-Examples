@@ -1,46 +1,25 @@
 #pragma once
 
-#include <random>
+#include <optional>
 
-#include <box2d/b2_body.h>
-#include <box2d/b2_circle_shape.h>
-#include <box2d/b2_fixture.h>
-#include <box2d/b2_world.h>
+#include <SFML/Graphics.hpp>
 
-#include "SFML/Graphics/Drawable.hpp"
-#include "SFML/Graphics/Transformable.hpp"
-#include "SFML/Graphics/Sprite.hpp"
-
-#include "core/SFML_Utilities.h"
 #include "core/box2DEntity.h"
-#include "core/userData.h"
-
-#include "managers/textureManager.h"
 
 class Asteroid : public Box2DEntity
 {
 public:
-	Asteroid(b2World& world_, sf::Vector2f size_);
+	Asteroid(b2WorldId world, sf::Vector2f window_size);
 
-	Asteroid operator=(const Asteroid& other);
-
-	//~Asteroid();
-
-	void setIsDead();
-	bool getIsDead();
-
-	long getLocalId();
+	void SetIsDead() { is_dead_ = true; }
+	bool IsDead() const { return is_dead_; }
+	long LocalId() const { return user_data_.LocalId(); }
 
 	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
 private:
-	sf::Sprite	m_sprite;
-	bool m_isDead = false;
+	static long NextId();
 
-	static long m_localIdAsteroid;
-	static long getGlobalId();
-
-protected:
-	void createFixture(const float sizeX, const float sizeY) override;
-
+	std::optional<sf::Sprite> sprite_;
+	bool is_dead_ = false;
 };

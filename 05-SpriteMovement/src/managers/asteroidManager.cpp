@@ -1,54 +1,30 @@
 #include "managers/asteroidManager.h"
 
-#include "SFML/Graphics/Drawable.hpp"
+#include <algorithm>
 
-AsteroidManager::AsteroidManager(b2World& world_) : m_world(world_)
+void AsteroidManager::Update()
 {
-	
+	// On enleve les morts AVANT de mettre a jour : detruire leur corps pendant
+	// la lecture des evenements serait trop tot, le pas est fini ici.
+	std::erase_if(asteroids_, [](const std::unique_ptr<Asteroid>& a) { return a->IsDead(); });
+
+	for (const auto& a : asteroids_) a->Update();
 }
 
-void AsteroidManager::draw (sf::RenderTarget& target, sf::RenderStates states) const
+void AsteroidManager::AddAsteroid(const sf::Vector2f window_size)
 {
-	for (auto& m : asteroids) {
-		target.draw(*m, states);
-	}
+	asteroids_.push_back(std::make_unique<Asteroid>(world_, window_size));
 }
 
-void AsteroidManager::update()
+void AsteroidManager::PutAsteroidToDeath(const long id)
 {
-	auto asteroidRemIt = std::remove_if(
-		asteroids.begin(),
-		asteroids.end(),
-		[](std::unique_ptr<Asteroid>& a) {return a->getIsDead(); });
+	const auto trouve = std::find_if(asteroids_.begin(), asteroids_.end(),
+	                                 [id](const auto& a) { return a->LocalId() == id; });
 
-	asteroids.erase(asteroidRemIt, asteroids.end());
-	
-	for (auto& a : asteroids) {
-		a->update();
-	}
+	if (trouve != asteroids_.end()) (*trouve)->SetIsDead();
 }
 
-void AsteroidManager::AddAsteroid(sf::Vector2f size)
+void AsteroidManager::draw(sf::RenderTarget& target, const sf::RenderStates states) const
 {
-	asteroids.emplace_back(std::make_unique<Asteroid>(m_world, size));
+	for (const auto& a : asteroids_) target.draw(*a, states);
 }
-
-void AsteroidManager::putAsteroidToDeath(int idAsteroid_)
-{
-	// Check id, then put isDead to true
-	auto asteroidFindIt = std::find_if(
-		asteroids.begin(),
-		asteroids.end(),
-		[idAsteroid_](auto& a) {return a->getLocalId() == idAsteroid_; }
-	);
-
-	if (asteroidFindIt != asteroids.end())
-	{
-		asteroidFindIt->get()->setIsDead();
-	}
-
-
-}
-
-
-

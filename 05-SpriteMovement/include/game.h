@@ -1,66 +1,58 @@
 #pragma once
 
+#include <memory>
+#include <optional>
 #include <vector>
 
-#include "SFML/Graphics/RenderWindow.hpp"
-#include "box2d/b2_world.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
 #include "bouncer.h"
 #include "lifeBar.h"
 #include "ship.h"
-#include "core/contact_listener.h"
-#include "managers/missileManager.h"
 #include "managers/asteroidManager.h"
+#include "managers/missileManager.h"
 
-class Game {
-
+// Un vaisseau en apesanteur, des asteroides qui tombent une fois par seconde, et
+// des missiles qui les traversent. C'est le seul exemple du depot qui ressemble
+// a un vrai jeu : plusieurs types d'entites, chacune reconnaissable au contact.
+//
+//   fleches     tourner et pousser
+//   espace      tirer
+//   D           afficher les bords de la fenetre
+class Game
+{
 public:
 	Game();
-	void init();
-	void loop();
+	~Game();
 
-	b2World& getWorld() { return m_world; };
-	Ship& getShip() { return m_ship; };
+	void Init();
+	void Loop();
 
-	void setDamagesToShip(float damages_);
-	void putAsteroidToDeath(int idAsteroid_);
-	void putMissileToDeath(int idMissile_);
-
+	void SetDamagesToShip(float damages);
+	void PutAsteroidToDeath(long id);
+	void PutMissileToDeath(long id);
 
 private:
+	void Update();
+	void Draw();
 
-	bool m_debugMode;
-	bool m_gameOver = false;
+	sf::RenderWindow window_;
+	b2WorldId world_ = b2_nullWorldId;
 
-	// The window ---------------------------------------------
-	sf::RenderWindow m_window;
+	std::vector<std::unique_ptr<Bouncer>> window_limits_;
 
-	// Sounds
-	SoundManager* m_soundManager = SoundManager::Instance();
+	std::optional<Ship> ship_;
+	std::optional<AsteroidManager> asteroid_manager_;
+	std::optional<MissileManager> missile_manager_;
 
-	// The physical world -------------------------------------
-	b2Vec2 m_gravity;
-	b2World m_world;
-	std::vector<std::unique_ptr<Bouncer>> m_windowLimits;
-	MyContactListener m_contacts;
+	LifeBar life_bar_{Ship::LifeMax()};
+	std::optional<sf::Sprite> game_over_title_;
 
+	sf::Clock clock_;
+	float accumulateur_ = 0.0f;
+	float depuis_asteroide_ = 0.0f;
 
-	// The game entities --------------------------------------
-	Ship m_ship;
-	AsteroidManager m_asteroidManager;
-	MissileManager m_missileManager;
-
-	// The ui entities
-	LifeBar m_lifeBar = LifeBar(100.0f);
-	sf::Sprite m_gameOverTitle;
-
-	sf::Clock clock;
-	sf::Time collectedElapsed;
-
-	void update();
-	void draw();
-
-	void call(int i);
-
-
+	bool debug_mode_ = false;
+	bool game_over_ = false;
 };

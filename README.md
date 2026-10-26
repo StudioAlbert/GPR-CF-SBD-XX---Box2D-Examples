@@ -26,23 +26,23 @@ Sous CLion, le panneau **Vcpkg** met la toolchain en place et la ligne
 
 ## Les cibles
 
-| Séance | Cible | Ce qu'elle montre | État |
-|---|---|---|---|
-| SBD-04 | `00-Starter` | le « hello world » de Box2D, en console : une caisse tombe et s'arrête | **portée** |
-| SBD-04 | `01-Gravity` | le monde, le pas fixe, un corps dynamique qui tombe ; le clic le téléporte | **portée** |
-| SBD-05 | `02-Bouncing` | les contacts : la bille change de couleur à chaque choc | **portée** |
-| SBD-05 | `02-BouncingAndCollsions` | **qui a touché qui** : chaque forme porte son objet, chaque objet son étiquette | **portée** |
-| SBD-05 | `03-BouncingAdvanced` | des plateformes **inclinées**, tracées à la souris : le seul exemple avec une rotation | **portée** |
-| SBD-06 | `04-ZeroGravity` | un vrai capteur : la bille le traverse et il s'allume | **portée** |
-| SBD-05 | `05-SpriteMovement` | un petit jeu complet : vaisseau, missiles, astéroïdes | à porter |
-| — | `0-Formative-Arkanoid` | squelette de casse-briques — la balle fait ses collisions à la main | **portée** |
-| — | `0-Formative-Starship` | squelette de shoot'em up — le vaisseau se déplace | **portée** |
+| Séance | Cible | Ce qu'elle montre  |
+|---|---|---|
+| SBD-04 | `00-Starter` | le « hello world » de Box2D, en console : une caisse tombe et s'arrête  |
+| SBD-04 | `01-Gravity` | le monde, le pas fixe, un corps dynamique qui tombe ; le clic le téléporte  |
+| SBD-05 | `02-Bouncing` | les contacts : la bille change de couleur à chaque choc  |
+| SBD-05 | `02-BouncingAndCollsions` | **qui a touché qui** : chaque forme porte son objet, chaque objet son étiquette  |
+| SBD-05 | `03-BouncingAdvanced` | des plateformes **inclinées**, tracées à la souris : le seul exemple avec une rotation  |
+| SBD-06 | `04-ZeroGravity` | un vrai capteur : la bille le traverse et il s'allume  |
+| SBD-05 | `05-SpriteMovement` | un petit jeu complet : vaisseau, missiles qui traversent, astéroïdes, barre de vie  |
+| — | `0-Formative-Arkanoid` | squelette de casse-briques — la balle fait ses collisions à la main  |
+| — | `0-Formative-Starship` | squelette de shoot'em up — le vaisseau se déplace  |
 
-## L'état du portage
+## Le portage est terminé
 
-Ce dépôt était en **Box2D 2 et SFML 2**, en projets Visual Studio. Le portage se fait cible
-par cible : seules celles listées comme *portée* ci-dessus entrent dans le `CMakeLists.txt`
-racine. Les autres restent en l'état, avec leurs `.vcxproj`, jusqu'à leur tour.
+Ce dépôt était en **Box2D 2 et SFML 2**, en projets Visual Studio. **Les neuf programmes
+sont portés et compilent**, et les `.vcxproj` comme le `.sln` ont été retirés : la
+construction passe par CMake.
 
 Ce qui change, d'une version à l'autre :
 

@@ -1,61 +1,28 @@
-
 #pragma once
 
-#include <string>
+#include <SFML/Graphics.hpp>
 
-#include "SFML/Graphics.hpp"
-
-/**
- * The Singleton class defines the `GetInstance` method that serves as an
- * alternative to constructor and lets clients access the same instance of this
- * class over and over.
- */
+// Les textures sont chargees une fois et partagees. Un sprite ne copie pas son
+// image : il pointe dessus, et cette image doit vivre aussi longtemps que lui.
+// C'est tout l'interet d'un gestionnaire.
 class TextureManager
 {
+public:
+	static TextureManager& Instance();
 
-    /**
-     * The Singleton's constructor should always be private to prevent direct
-     * construction calls with the `new` operator.
-     */
+	TextureManager(const TextureManager&) = delete;
+	TextureManager& operator=(const TextureManager&) = delete;
+
+	const sf::Texture& Asteroid() const { return asteroid_; }
+	const sf::Texture& Ship() const { return ship_; }
+	const sf::Texture& GameOver() const { return game_over_; }
+	const sf::Texture& Missile() const { return missile_; }
 
 private:
-    TextureManager();
+	TextureManager();
 
-    static TextureManager* textureManager_;
-
-    sf::Texture m_asteroidTexture;
-    sf::Texture m_shipTexture;
-    sf::Texture m_gameOverTexture;
-    sf::Texture m_missileTexture;
-
-public:
-
-    /**
-     * Singletons should not be cloneable.
-     */
-    TextureManager(TextureManager& other) = delete;
-    /**
-     * Singletons should not be assignable.
-     */
-    void operator=(const TextureManager&) = delete;
-
-    /**
-     * This is the static method that controls the access to the singleton
-     * instance. On the first run, it creates a singleton object and places it
-     * into the static field. On subsequent runs, it returns the client existing
-     * object stored in the static field.
-     */
-    static TextureManager* Instance();
-
-
-    // --------------------
-    // Getters
-    sf::Texture& getAsteroidTexture();
-    sf::Texture& getShipTexture();
-    sf::Texture& getGameOverTexture();
-    sf::Texture& getMissileTexture();
-
-
+	sf::Texture asteroid_;
+	sf::Texture ship_;
+	sf::Texture game_over_;
+	sf::Texture missile_;
 };
-
-

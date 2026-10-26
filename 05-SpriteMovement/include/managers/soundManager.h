@@ -1,73 +1,37 @@
-
 #pragma once
 
-#include <string>
-#include <iostream>
+#include <list>
 
-#include "SFML/Audio.hpp"
+#include <SFML/Audio.hpp>
 
-/**
- * The Singleton class defines the `GetInstance` method that serves as an
- * alternative to constructor and lets clients access the same instance of this
- * class over and over.
- */
+// Un `sf::Sound` ne joue qu'un son a la fois : en rejouer un deja en cours coupe
+// le precedent. Pour que deux tirs se superposent, il faut donc un `sf::Sound`
+// par son en vol — d'ou la liste, purgee de ceux qui ont fini.
 class SoundManager
 {
+public:
+	static SoundManager& Instance();
+
+	SoundManager(const SoundManager&) = delete;
+	SoundManager& operator=(const SoundManager&) = delete;
+
+	void PlayPiou();
+	void PlayBrr();
+	void PlayBoum();
+
+	// A appeler une fois par image : retire les sons termines.
+	void CleanSounds();
 
 private:
-    /**
-     * The Singleton's constructor should always be private to prevent direct
-     * construction calls with the `new` operator.
-     */
-    SoundManager();
+	SoundManager();
 
-    std::vector<sf::Sound> sounds;
+	void Play(const sf::SoundBuffer& buffer);
 
-    // Sound FX
-    sf::SoundBuffer soundFxPiou;
-    sf::Sound pious;
+	sf::SoundBuffer piou_;
+	sf::SoundBuffer brr_;
+	sf::SoundBuffer boum_;
 
-    sf::SoundBuffer soundFxBrr;
-    sf::Sound brrs;
-
-    sf::SoundBuffer soundFxBoum;
-    sf::Sound boum;
-
-    void playOnce(sf::SoundBuffer& soundFx_);
-	void playLoop(sf::SoundBuffer& soundFx_);
-
-protected:
-
-    static SoundManager* SoundManager_;
-
-public:
-
-    /**
-     * Singletons should not be cloneable.
-     */
-    SoundManager(SoundManager& other) = delete;
-    /**
-     * Singletons should not be assignable.
-     */
-    void operator=(const SoundManager&) = delete;
-
-    /**
-     * This is the static method that controls the access to the singleton
-     * instance. On the first run, it creates a singleton object and places it
-     * into the static field. On subsequent runs, it returns the client existing
-     * object stored in the static field.
-     */
-    static SoundManager* Instance();
-
-    void cleanSounds();
-    void cleanOneVector(std::vector<sf::Sound> sounds_);
-
-    // --------------------
-    void playPiou();
-    void playBrr();
-    void playBoum();
-
-
+	// Une liste, pas un vector : `sf::Sound` n'est pas deplacable sans risque
+	// et une liste ne deplace jamais ses elements.
+	std::list<sf::Sound> en_cours_;
 };
-
-
