@@ -35,8 +35,18 @@ Sous CLion, le panneau **Vcpkg** met la toolchain en place et la ligne
 | SBD-05 | `03-BouncingAdvanced` | des plateformes **inclinées**, tracées à la souris : le seul exemple avec une rotation  |
 | SBD-06 | `04-ZeroGravity` | un vrai capteur : la bille le traverse et il s'allume  |
 | SBD-05 | `05-SpriteMovement` | un petit jeu complet : vaisseau, missiles qui traversent, astéroïdes, barre de vie  |
-| — | `0-Formative-Arkanoid` | squelette de casse-briques — la balle fait ses collisions à la main  |
-| — | `0-Formative-Starship` | squelette de shoot'em up — le vaisseau se déplace  |
+
+## Les formatives sont sur leur propre branche
+
+Les deux squelettes d'exercice — un casse-briques et un shoot'em up — ne sont pas sur
+`master` : ils vivent sur la branche **`formatives`**, pour que les étudiants ne tombent
+pas dessus en lisant les exemples du cours.
+
+```bash
+git switch formatives
+```
+
+Ils sont portés et ils compilent, comme le reste.
 
 ## Le portage est terminé
 
