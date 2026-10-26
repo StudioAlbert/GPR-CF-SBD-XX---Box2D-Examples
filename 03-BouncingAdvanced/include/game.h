@@ -1,50 +1,34 @@
 #pragma once
+
+#include <memory>
 #include <vector>
 
-#include "SFML/Graphics/RenderWindow.hpp"
-#include "SFML/Graphics/Texture.hpp"
-#include "SFML/Window//Event.hpp"
-#include "box2d/b2_world.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
 #include "ball.h"
 #include "bouncer.h"
 
-using namespace std;
-using namespace sf;
-
-class Game{
+// Clic gauche : on trace une plateforme inclinee. Clic droit : on relance la
+// bille, le glisser donne la vitesse. Espace efface les plateformes.
+class Game
+{
 public:
-	Game();
-	void init();
-	void loop();
+	Game() = default;
+	~Game();
 
-	b2World& getWorld() { return world_; };
-
-	static b2Vec2 pixelsToMeters(sf::Vector2f pixels);
-	static b2Vec2 pixelsToMeters(sf::Vector2u pixels);
-	static float pixelsToMeters(float pixels);
-	static sf::Vector2f metersToPixels(b2Vec2 meters);
-
-	static const float pixelsMetersRatio;
+	void Init();
+	void Loop();
 
 private:
+	void ClearBouncers();
 
-	// The window ---------------------------------------------
-	RenderWindow window_;
+	sf::RenderWindow window_;
+	b2WorldId world_ = b2_nullWorldId;
 
-	// The physical world -------------------------------------
-	b2Vec2 gravity_;
-	b2World world_;
+	Ball the_ball_;
+	// Des pointeurs : un vector qui grandit deplace ses elements.
+	std::vector<std::unique_ptr<Bouncer>> bouncers_;
 
-	Ball theBall;
-	vector<Bouncer> bouncers;
-
-#pragma region Physical world methods
-	void clearBouncers();
-#pragma endregion
-
-
-	Vector2f mousePressedPos_bouncer, mouseReleasedPos_bouncer;
-	Vector2f mousePressedPos_ball, mouseReleasedPos_ball;
-
+	sf::Vector2f mouse_pressed_bouncer_, mouse_pressed_ball_;
 };

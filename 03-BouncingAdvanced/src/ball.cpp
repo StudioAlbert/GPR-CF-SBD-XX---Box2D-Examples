@@ -1,66 +1,50 @@
-
-#include <iostream>
-
 #include "ball.h"
-#include "game.h"
 
-Ball::Ball(Game& game_, sf::RenderWindow& window_) : game(game_), window(window_)
+#include "SFML-Utilities.h"
+
+void Ball::Init(const b2WorldId world, const sf::Vector2u window_size)
 {
+	// --- le graphique ------------------------------------------------------
+	shape_.setRadius(20.0f);
+	// L'origine d'un cercle est son centre, donc le rayon — pas la moitie.
+	shape_.setOrigin({shape_.getRadius(), shape_.getRadius()});
+	shape_.setFillColor(sf::Color::Red);
+
+	// --- le corps ----------------------------------------------------------
+	b2BodyDef body_def = b2DefaultBodyDef();
+	body_def.type = b2_dynamicBody;
+	body_def.motionLocks.angularZ = true;
+
+	const b2Vec2 taille = PixelsToMeters(window_size);
+	body_def.position = {taille.x / 2.0f, taille.y / 2.0f};
+	body_ = b2CreateBody(world, &body_def);
+
+	// --- la forme ----------------------------------------------------------
+	b2Circle circle{};
+	circle.center = {0.0f, 0.0f};
+	circle.radius = PixelsToMeters(shape_.getRadius());
+
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.material.friction = 0.0f;
+	shape_def.material.restitution = 0.6f;
+
+	b2CreateCircleShape(body_, &shape_def, &circle);
 }
 
-void Ball::init() {
-
-    // Defining the shape
-	_shape.setRadius(20.0f);
-    _shape.setOrigin(_shape.getRadius() * 0.5f, _shape.getRadius() * 0.5f);
-	_shape.setFillColor(sf::Color::Red);
-	_shape.setFillColor(sf::Color::Red);
-
-    // Defing the box 2D elements
-    b2BodyDef bodyDef;
-    bodyDef.fixedRotation = true;
-    bodyDef.type = b2_dynamicBody;
-    b2Vec2 windowSize = Game::pixelsToMeters(window.getSize());
-    bodyDef.position.Set(windowSize.x / 2.0f, windowSize.y / 2.0f);
-    body = this->game.getWorld().CreateBody(&bodyDef);
-
-    // Shape of the physical (A box)
-    b2CircleShape ballBox;
-    ballBox.m_radius = _shape.getRadius() / game.pixelsMetersRatio;
-
-    // The fixture is what it defines the physic react
-    b2FixtureDef playerFixtureDef;
-    playerFixtureDef.shape = &ballBox;
-    playerFixtureDef.density = 1.0f;
-    playerFixtureDef.friction = 0.0f;
-    playerFixtureDef.restitution = 0.6f; // Make it bounce a little bit
-    //playerFixtureDef.userData.pointer = reinterpret_cast <std::uintptr_t>(&playerBoxData);
-    body->CreateFixture(&playerFixtureDef);
-
+void Ball::Update()
+{
+	shape_.setPosition(MetersToPixels(b2Body_GetPosition(body_)));
 }
 
-void Ball::update() {
-    
-    std::cout << "Ball position [" << body->GetPosition().x << ":" << body->GetPosition().y 
-        << "]|shape position [" << _shape.getPosition().x << ":" << _shape.getPosition().y << "]" << std::endl;
-    
-    // Get the position of the body
-    b2Vec2 bodyPos = body->GetPosition();
-    // Translate meters to pixels
-    sf::Vector2f graphicPosition = Game::metersToPixels(bodyPos);
-    // Set the position of the Graphic object
-	_shape.setPosition(graphicPosition);
-
+void Ball::draw(sf::RenderTarget& target, const sf::RenderStates states) const
+{
+	target.draw(shape_, states);
 }
 
-void Ball::render() {
-	window.draw(_shape);
-}
-
-void Ball::setPixelsPosition(sf::Vector2f _pixelsPosition, sf::Vector2f velocity_) {
-    // Put in mouse position
-    body->SetTransform(Game::pixelsToMeters(_pixelsPosition), body->GetAngle());
-    // Reset the velocity (Speed)
-    b2Vec2 newb2Velocity = game.pixelsToMeters(velocity_);
-    body->SetLinearVelocity(newb2Velocity);
+void Ball::SetPixelsPosition(const sf::Vector2f pixels_position, const sf::Vector2f velocity) const
+{
+	b2Body_SetTransform(body_, PixelsToMeters(pixels_position), b2Body_GetRotation(body_));
+	b2Body_SetLinearVelocity(body_, PixelsToMeters(velocity));
+	b2Body_SetAwake(body_, true);
 }

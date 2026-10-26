@@ -1,25 +1,18 @@
 #pragma once
 
-#include "SFML/Graphics.hpp"
-#include "box2d/box2d.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
-class Game;
-
-class Ball
+class Ball : public sf::Drawable
 {
 public:
-	explicit Ball(Game& game_, sf::RenderWindow& window_);
+	void Init(b2WorldId world, sf::Vector2u window_size);
+	void Update();
+	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
-	void init();
-	void update();
-	void render();
-	void setPixelsPosition(sf::Vector2f _pixelsPosition, sf::Vector2f _velocity);
+	void SetPixelsPosition(sf::Vector2f pixels_position, sf::Vector2f velocity) const;
 
 private:
-	Game& game;
-
-	sf::CircleShape _shape;
-	sf::RenderWindow& window;
-	b2Body* body = nullptr;
-
+	sf::CircleShape shape_;
+	b2BodyId body_ = b2_nullBodyId;
 };

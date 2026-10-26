@@ -1,30 +1,20 @@
 #pragma once
 
-#include "SFML/Graphics.hpp"
-#include "box2d/box2d.h"
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
-class Game;
-
-class Bouncer
+// Une plateforme INCLINEE, tracee a la souris. C'est le seul exemple du depot
+// ou un corps a une rotation : il montre pourquoi l'angle change de signe entre
+// le monde physique et l'ecran.
+class Bouncer : public sf::Drawable
 {
 public:
-	explicit Bouncer(Game& game_, sf::RenderWindow& window_, sf::Vector2f, sf::Vector2f);
+	Bouncer(b2WorldId world, sf::Vector2f start, sf::Vector2f end);
 
-	void init(sf::Vector2f, sf::Vector2f);
-	void update();
-	void render();
-
-	b2Body* getBody(){ return body; };
+	b2BodyId GetBody() const { return body_; }
+	void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
 private:
-	// Root game
-	Game& game;
-	// Graphic object
-	sf::RectangleShape shape;
-	sf::ConvexShape boxShape;
-	// The SFMl Window
-	sf::RenderWindow& window;
-	// The box 2D object
-	b2Body* body = nullptr;
-
+	sf::RectangleShape shape_;
+	b2BodyId body_ = b2_nullBodyId;
 };

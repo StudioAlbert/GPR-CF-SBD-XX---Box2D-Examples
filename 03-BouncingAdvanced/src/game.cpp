@@ -1,153 +1,89 @@
 #include "game.h"
 
-const float Game::pixelsMetersRatio = 100.0f;
+#include "SFML-Utilities.h"
 
-Game::Game() :
-	theBall(*this, this->window_),
-	gravity_(0, -9.81f),
-	world_(gravity_)
+Game::~Game()
 {
-
+	if (b2World_IsValid(world_)) b2DestroyWorld(world_);
 }
 
-void Game::init() {
-
-	window_.create(sf::VideoMode(1280, 720), "SAE Platformer");
+void Game::Init()
+{
+	window_.create(sf::VideoMode({1280, 720}), "SAE Bouncing Advanced");
 	window_.setVerticalSyncEnabled(true);
-	window_.setFramerateLimit(60.0f);
+	window_.setFramerateLimit(60);
 
-	// Init all elements
-	theBall.init();
+	b2WorldDef world_def = b2DefaultWorldDef();
+	world_def.gravity = {0.0f, -9.81f};
+	world_ = b2CreateWorld(&world_def);
 
+	the_ball_.Init(world_, window_.getSize());
 }
 
-void Game::loop()
+void Game::Loop()
 {
+	constexpr float kPas = 1.0f / 60.0f;
+	constexpr int kSousPas = 4;
 
 	while (window_.isOpen())
 	{
-#pragma region Event processes
-		sf::Event event;
-
-		while (window_.pollEvent(event))
+		// --- les evenements ------------------------------------------------
+		while (const std::optional event = window_.pollEvent())
 		{
-			// Windows events -------------------------------------------------------------------------------
-			if (event.type == sf::Event::Closed)
+			if (event->is<sf::Event::Closed>())
 			{
 				window_.close();
 				return;
 			}
-			if (event.type == sf::Event::Resized)
+			if (const auto* resized = event->getIf<sf::Event::Resized>())
 			{
-				auto view = window_.getView();
-				view.setSize(event.size.width, event.size.height);
+				sf::View view = window_.getView();
+				view.setSize(sf::Vector2f(resized->size));
 				window_.setView(view);
 			}
-
-			// Mouse events ---------------------------------------------------------------------------------
-			if (event.type == sf::Event::MouseButtonPressed)
+			if (const auto* presse = event->getIf<sf::Event::MouseButtonPressed>())
 			{
-				if (event.mouseButton.button == sf::Mouse::Left) {
-					// mouse Released position detect
-					mousePressedPos_bouncer = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
+				if (presse->button == sf::Mouse::Button::Left)
+					mouse_pressed_bouncer_ = sf::Vector2f(presse->position);
+				if (presse->button == sf::Mouse::Button::Right)
+					mouse_pressed_ball_ = sf::Vector2f(presse->position);
+			}
+			if (const auto* relache = event->getIf<sf::Event::MouseButtonReleased>())
+			{
+				const sf::Vector2f fin(relache->position);
+
+				if (relache->button == sf::Mouse::Button::Left)
+				{
+					// Le trait donne la longueur ET l'inclinaison.
+					if (VecLength(fin - mouse_pressed_bouncer_) > 5.0f)
+						bouncers_.push_back(
+						    std::make_unique<Bouncer>(world_, mouse_pressed_bouncer_, fin));
 				}
-				if (event.mouseButton.button == sf::Mouse::Right) {
-					// mouse Released position detect
-					mousePressedPos_ball = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
+				if (relache->button == sf::Mouse::Button::Right)
+				{
+					the_ball_.SetPixelsPosition(fin, fin - mouse_pressed_ball_);
 				}
 			}
-
-			if (event.type == sf::Event::MouseButtonReleased)
+			if (const auto* touche = event->getIf<sf::Event::KeyReleased>())
 			{
-				if (event.mouseButton.button == sf::Mouse::Right) {
-					mouseReleasedPos_ball = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
-					sf::Vector2f velocity(mouseReleasedPos_ball.x - mousePressedPos_ball.x, mouseReleasedPos_ball.y - mousePressedPos_ball.y);
-
-					theBall.setPixelsPosition(sf::Vector2f(event.mouseButton.x, event.mouseButton.y), velocity);
-				}
-
-				if (event.mouseButton.button == sf::Mouse::Left) {
-					// mouse Released position detect
-					mouseReleasedPos_bouncer = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
-
-					// Add a bouncer
-					Bouncer newBouncer(*this, this->window_, mousePressedPos_bouncer, mouseReleasedPos_bouncer);
-					bouncers.push_back(newBouncer);
-				}
-			}
-			// Keyboard events
-			if (event.type == sf::Event::KeyReleased) {
-				if (event.key.code == sf::Keyboard::Space) {
-					clearBouncers();
-				}
+				if (touche->scancode == sf::Keyboard::Scancode::Space) ClearBouncers();
 			}
 		}
-#pragma endregion
 
+		// --- la physique ---------------------------------------------------
+		b2World_Step(world_, kPas, kSousPas);
+		the_ball_.Update();
 
-#pragma region Physical process
-		// Updating the world with a delay
-		float timeStep = 1.0f / 60.0f;
-		int32 velocityIterations = 6;
-		int32 positionIterations = 2;
-		world_.Step(timeStep, velocityIterations, positionIterations);
-
-		// Update the elements
-		theBall.update();
-		for (auto b = bouncers.begin(); b != bouncers.end(); b++) {
-			b->update();
-		}
-
-#pragma endregion
-
-
-#pragma region Graphics process
-		// Clear all background
+		// --- le graphique --------------------------------------------------
 		window_.clear();
-		// Render All elements
-		theBall.render();
-		for (auto b = bouncers.begin(); b != bouncers.end(); b++) {
-			b->render();
-		}
-		// Display all elements
+		for (const auto& b : bouncers_) window_.draw(*b);
+		window_.draw(the_ball_);
 		window_.display();
-#pragma endregion
-
 	}
 }
 
-b2Vec2 Game::pixelsToMeters(sf::Vector2f pixels)
+void Game::ClearBouncers()
 {
-	return b2Vec2(pixels.x / pixelsMetersRatio, -1.0f * pixels.y / pixelsMetersRatio);
-}
-
-b2Vec2 Game::pixelsToMeters(sf::Vector2u pixels)
-{
-	return b2Vec2(pixels.x / pixelsMetersRatio, -1.0f * pixels.y / pixelsMetersRatio);
-}
-
-float Game::pixelsToMeters(float pixels)
-{
-	return pixels / pixelsMetersRatio;
-}
-
-sf::Vector2f Game::metersToPixels(b2Vec2 meters)
-{
-	return sf::Vector2f(meters.x * pixelsMetersRatio, -1.0f * meters.y * pixelsMetersRatio);
-}
-
-void Game::clearBouncers()
-{
-
-	for (auto myBouncer = bouncers.begin(); myBouncer != bouncers.end(); myBouncer++)
-	{
-		// First remove bodies from the physical world
-		world_.DestroyBody(myBouncer->getBody());
-		// Notice that the iterator is decremented after it is passed
-		// to `erase()` but before `erase()` is executed
-		//bouncers.erase(myBouncer--);
-	}
-
-	bouncers.clear();
-
+	for (const auto& b : bouncers_) b2DestroyBody(b->GetBody());
+	bouncers_.clear();
 }

@@ -26,6 +26,8 @@ function(copy_data target)
             "${CMAKE_CURRENT_SOURCE_DIR}/data" "$<TARGET_FILE_DIR:${target}>/data")
 endfunction()
 
+add_subdirectory(00-Starter)
 add_subdirectory(01-Gravity)
 add_subdirectory(02-Bouncing)
+add_subdirectory(03-BouncingAdvanced)
 add_subdirectory(04-ZeroGravity)

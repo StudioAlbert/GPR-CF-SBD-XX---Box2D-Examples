@@ -1,36 +1,48 @@
-#define _USE_MATH_DEFINES
-#include <math.h>
+#pragma once
 
-#include "SFML/Graphics.hpp"
+#include <cmath>
 
-static class SFML_Utilities{
+#include <SFML/Graphics.hpp>
+#include <box2d/box2d.h>
 
-public:
-  static float vecLength(sf::Vector2f vec_) {
-    return sqrt(vec_.x * vec_.x + vec_.y * vec_.y);
-  }
+// Le seul endroit de ce programme qui connait le facteur.
+constexpr float kPixelsMetersRatio = 100.0f;
 
-  static float vecAngle(sf::Vector2f vec1_, sf::Vector2f vec2_) {
-      return atan2(determinant(vec1_, vec2_), dotProduct(vec1_, vec2_));  // atan2(y, x) or atan2(sin, cos)
-  }
+// Y monte chez Box2D, il descend chez SFML : les deux conversions vivent ici.
+inline b2Vec2 PixelsToMeters(const sf::Vector2f pixels)
+{
+	return {pixels.x / kPixelsMetersRatio, -1.0f * pixels.y / kPixelsMetersRatio};
+}
 
-  // dot product between vec1[x1, y1] and vec2[x2, y2]
-  static float dotProduct(sf::Vector2f vec1_, sf::Vector2f vec2_) {
-     return vec1_.x * vec2_.x + vec1_.y * vec2_.y;
-  }
+inline b2Vec2 PixelsToMeters(const sf::Vector2u pixels)
+{
+	return PixelsToMeters(sf::Vector2f(pixels));
+}
 
-  // determinant between vec1[x1, y1] and vec2[x2, y2]
-  static float determinant(sf::Vector2f vec1_, sf::Vector2f vec2_) {
-      return vec1_.x * vec2_.y - vec1_.y * vec2_.x;
-  }
+inline float PixelsToMeters(const float pixels)
+{
+	return pixels / kPixelsMetersRatio;
+}
 
-  static float degToRad(float degrees_) {
-      return (degrees_ * M_PI / 180.0f);
-  }
+inline sf::Vector2f MetersToPixels(const b2Vec2 meters)
+{
+	return {meters.x * kPixelsMetersRatio, -1.0f * meters.y * kPixelsMetersRatio};
+}
 
-  static float radToDeg(float radians_) {
-      return (radians_ / M_PI * 180.0f);
-      
-  }
+inline float MetersToPixels(const float meters)
+{
+	return meters * kPixelsMetersRatio;
+}
 
-};
+inline float VecLength(const sf::Vector2f v)
+{
+	return std::sqrt(v.x * v.x + v.y * v.y);
+}
+
+// L'angle oriente de vec1 vers vec2, dans le repere de l'ECRAN (Y vers le bas).
+inline float VecAngle(const sf::Vector2f v1, const sf::Vector2f v2)
+{
+	const float determinant = v1.x * v2.y - v1.y * v2.x;
+	const float produit_scalaire = v1.x * v2.x + v1.y * v2.y;
+	return std::atan2(determinant, produit_scalaire);
+}

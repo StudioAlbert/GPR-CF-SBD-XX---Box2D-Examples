@@ -1,53 +1,61 @@
+// Le « hello world » de Box2D : une caisse qui tombe sur un sol, et sa position
+// affichee en console. Aucun graphique — c'est l'atelier de SBD-04, ou l'on
+// verifie que la physique tourne avant d'avoir quoi que ce soit a l'ecran.
+
+#include <cstdlib>
 #include <iostream>
-#include <box2d/b2_body.h>
-#include <box2d/b2_fixture.h>
-#include <box2d/b2_polygon_shape.h>
-#include <box2d/b2_world.h>
+
+#include <box2d/box2d.h>
 
 int main()
 {
-    std::cout << "Hello Box 2D World" << std::endl;
+	std::cout << "Hello Box2D 3\n";
 
-    b2Vec2 gravity(0.0f, -10.0f);
-    b2World world(gravity);
+	// --- le monde ----------------------------------------------------------
+	b2WorldDef world_def = b2DefaultWorldDef();
+	world_def.gravity = {0.0f, -10.0f};
+	const b2WorldId world = b2CreateWorld(&world_def);
 
-    // The floor -------------------------------------------------------------
-    b2BodyDef ground_body_def;
-    ground_body_def.position.Set(0.0f, -10.0f);
-    b2Body* ground_body = world.CreateBody(&ground_body_def);
+	// --- le sol, statique --------------------------------------------------
+	b2BodyDef ground_def = b2DefaultBodyDef();
+	ground_def.position = {0.0f, -10.0f};
+	const b2BodyId ground = b2CreateBody(world, &ground_def);
 
-	b2PolygonShape ground_box;
-    ground_box.SetAsBox(50.0f, 10.0f);
-    ground_body->CreateFixture(&ground_box, 0.0f);
+	// b2MakeBox prend des DEMI-dimensions : 100 m de large, 20 m de haut.
+	const b2Polygon ground_box = b2MakeBox(50.0f, 10.0f);
+	b2ShapeDef ground_shape = b2DefaultShapeDef();
+	b2CreatePolygonShape(ground, &ground_shape, &ground_box);
 
-    // The object --------------------------------------------------------------
-    b2BodyDef body_def;
-    body_def.type = b2_dynamicBody;
-    body_def.position.Set(0.0f, 4.0f);
-    b2Body* body = world.CreateBody(&body_def);
+	// --- la caisse, dynamique ----------------------------------------------
+	b2BodyDef body_def = b2DefaultBodyDef();
+	body_def.type = b2_dynamicBody;
+	body_def.position = {0.0f, 4.0f};
+	const b2BodyId body = b2CreateBody(world, &body_def);
 
-    b2PolygonShape dynamic_box;
-    dynamic_box.SetAsBox(1.0f, 1.0f);
+	const b2Polygon box = b2MakeBox(1.0f, 1.0f);
+	b2ShapeDef shape_def = b2DefaultShapeDef();
+	shape_def.density = 1.0f;
+	shape_def.material.friction = 0.3f;
+	b2CreatePolygonShape(body, &shape_def, &box);
 
-    b2FixtureDef fixture_def;
-    fixture_def.shape = &dynamic_box;
-    fixture_def.density = 1.0f;
-    fixture_def.friction = 0.3f;
+	// --- la simulation ------------------------------------------------------
+	// Un pas FIXE de 1/60 s, quatre-vingt-dix fois : une seconde et demie. La
+	// caisse part de 4 m, tombe, et se pose a 1 m — la moitie de sa hauteur.
+	constexpr float kPas = 1.0f / 60.0f;
+	constexpr int kSousPas = 4;
 
-    body->CreateFixture(&fixture_def);
+	for (int i = 0; i < 90; ++i)
+	{
+		b2World_Step(world, kPas, kSousPas);
 
-    for (int32 i = 0; i < 3000; ++i)
-    {
-        constexpr float time_step = 0.0001f;
-        constexpr int32 velocity_iterations = 6;
-        constexpr int32 position_iterations = 2;
+		const b2Vec2 position = b2Body_GetPosition(body);
+		const float angle = b2Rot_GetAngle(b2Body_GetRotation(body));
 
-    	world.Step(time_step, velocity_iterations, position_iterations);
-        b2Vec2 position = body->GetPosition();
-        float angle = body->GetAngle();
-        std::cout << "Object position : " << position.x << " : " << position.y << " : " << angle << std::endl;
-    }
+		std::cout << "x = " << position.x << "  y = " << position.y
+		          << "  angle = " << angle << '\n';
+	}
 
+	// Emporte les corps et les formes : rien d'autre a liberer.
+	b2DestroyWorld(world);
+	return EXIT_SUCCESS;
 }
-
-
